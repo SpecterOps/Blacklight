@@ -79,12 +79,12 @@ not-json
         @{ Path = (Join-Path $fixture ".codex\sessions\medium.jsonl"); Size = 200; Modified = "2026-07-03T00:00:00Z" },
         @{ Path = (Join-Path $fixture ".codex\sessions\large.jsonl"); Size = 300; Modified = "2026-07-02T00:00:00Z" },
         @{ Path = (Join-Path $fixture ".codex\sessions\excluded-fourth.jsonl"); Size = 50; Modified = "2026-07-01T00:00:00Z" },
-        @{ Path = (Join-Path $fixture ".claude\projects\project with space\claude-session.jsonl"); Size = 500 },
-        @{ Path = (Join-Path $fixture ".claude\projects\project with space\claude-session-2.jsonl"); Size = 450 },
-        @{ Path = (Join-Path $fixture ".claude\projects\project with space\claude-session-3.jsonl"); Size = 425 },
-        @{ Path = (Join-Path $fixture ".claude\projects\project with space\excluded-fourth.jsonl"); Size = 25 },
-        @{ Path = (Join-Path $fixture ".cursor\chats\workspace\session\store.db"); Size = 400 },
-        @{ Path = (Join-Path $fixture ".cursor\projects\workspace\agent-transcripts\cursor-session\cursor-session.jsonl"); Size = 600 }
+        @{ Path = (Join-Path $fixture ".claude\projects\project with space\claude-session.jsonl"); Size = 500; Modified = "2026-07-08T00:00:00Z" },
+        @{ Path = (Join-Path $fixture ".claude\projects\project with space\claude-session-2.jsonl"); Size = 450; Modified = "2026-07-07T00:00:00Z" },
+        @{ Path = (Join-Path $fixture ".claude\projects\project with space\claude-session-3.jsonl"); Size = 425; Modified = "2026-07-06T00:00:00Z" },
+        @{ Path = (Join-Path $fixture ".claude\projects\project with space\excluded-fourth.jsonl"); Size = 25; Modified = "2026-07-05T00:00:00Z" },
+        @{ Path = (Join-Path $fixture ".cursor\chats\workspace\session\store.db"); Size = 400; Modified = "2026-07-10T00:00:00Z" },
+        @{ Path = (Join-Path $fixture ".cursor\projects\workspace\agent-transcripts\cursor-session\cursor-session.jsonl"); Size = 600; Modified = "2026-07-09T00:00:00Z" }
     )
     foreach ($session in $sessionFixtures) {
         $stream = [System.IO.File]::Open($session.Path, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::ReadWrite)
