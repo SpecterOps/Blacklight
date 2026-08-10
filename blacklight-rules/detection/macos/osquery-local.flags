@@ -1,0 +1,8 @@
+--config_path=/var/osquery/osquery.conf
+--logger_plugin=filesystem
+--logger_path=/var/log/osquery
+--disable_events=false
+--enable_file_events=true
+--disable_endpointsecurity=false
+--disable_endpointsecurity_fim=false
+--es_fim_enable_open_events=true

@@ -1,0 +1,132 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Scout ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Windows Server 2022 includes GCC/MinGW and binutils. The 2025 image
+          # does not, which would require downloading the toolchain per run.
+          - os: windows-2022
+            release_target: "release-windows"
+            artifacts: "out/build/scout/ai_path_scout.x64.o out/build/scout/ai_path_scout-windows-x64.exe"
+          - os: macos-latest
+            release_target: "release-macos"
+            artifacts: "out/build/scout/libai_path_scout.dylib"
+          - os: ubuntu-latest
+            release_target: "release-linux"
+            artifacts: "out/build/scout/libai_path_scout.so out/build/scout/ai_path_scout-managed.exe"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install and smoke test operator CLI
+        run: |
+          python -m pip install -e .
+          blacklight --help
+          blacklight sessions --help
+
+      - name: Verify tag matches embedded release version
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python -m unittest blacklight.tests.test_release_version
+
+      - name: Regenerate Scout catalog
+        run: |
+          python blacklight-scout/catalog/generate_targets.py
+          git diff --exit-code -- blacklight-scout/catalog/static_targets_generated.h blacklight-scout/managed/GeneratedTargets.cs
+
+      - name: Build and verify Scout artifacts
+        shell: bash
+        run: make -C blacklight-scout ${{ matrix.release_target }} CC_X64=x86_64-w64-mingw32-gcc
+
+      - name: Smoke test POSIX triage
+        if: runner.os == 'Linux'
+        shell: bash
+        run: bash ./blacklight-scout/native/smoke_test.sh
+
+      - name: Build managed Scout for Windows smoke validation
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: dotnet build blacklight-scout/managed/ai_path_scout-managed.csproj -c Release -p:OutputPath="$PWD/out/build/scout/"
+
+      - name: Smoke test Windows executable triage
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./blacklight-scout/tests/exe_triage_smoke.ps1
+
+      - name: Stage release artifacts
+        shell: bash
+        run: |
+          mkdir -p release-bundle
+          for path in ${{ matrix.artifacts }}; do
+            if [ ! -f "$path" ]; then
+              echo "Expected Scout artifact missing: $path"
+              exit 1
+            fi
+            cp "$path" release-bundle/
+          done
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            cp blacklight-scout/releases/ai_path_scout/metadata.json release-bundle/metadata.json
+            cp blacklight-scout/releases/ai_path_scout/sample_output.txt release-bundle/sample_output.txt
+          fi
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scout-${{ matrix.os }}
+          path: release-bundle/*
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: Create checksums
+        shell: bash
+        run: |
+          cd release-artifacts
+          sha256sum ai_path_scout* libai_path_scout* metadata.json sample_output.txt > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-artifacts/ai_path_scout.x64.o
+            release-artifacts/ai_path_scout-windows-x64.exe
+            release-artifacts/ai_path_scout-managed.exe
+            release-artifacts/libai_path_scout.dylib
+            release-artifacts/libai_path_scout.so
+            release-artifacts/metadata.json
+            release-artifacts/sample_output.txt
+            release-artifacts/SHA256SUMS.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

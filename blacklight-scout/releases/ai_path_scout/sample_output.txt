@@ -1,0 +1,68 @@
+[i] Blacklight endpoint assessment
+[i]
+[i] ASSESSMENT SUMMARY
+[i]   Tools detected:       3
+[+]   Credential stores:    1 file
+[+]   Refresh material:     CODEX
+[+]   Trusted projects:     2
+[i]   Session locations:    6
+[i]   Session artifacts:    7
+[i]   Recent activity:      CODEX, CLAUDE CODE, CURSOR
+[i]   Discovery status:     COMPLETE
+[i]
+[i] CODEX
+[+]   1 credential file | 2 suspected credential fields | refresh token indicator present
+[i]   1 rules file | 14 allow rules
+[i]   1 config file | 2 recognized settings
+[i]   4 session locations | 4 session artifacts | latest activity 2026-07-15
+[i]
+[+] AUTHENTICATION ARTIFACTS
+    2 suspected credential fields | refresh token indicator present
+    C:\Users\operator\.codex\auth.json
+
+[i] RULES
+    14 allow rules | 0 deny rules
+    C:\Users\operator\.codex\rules\default.rules
+
+[i] CONFIGURATION
+    2 recognized settings
+    C:\Users\operator\.codex\config.toml
+
+[i] SESSION LOCATIONS
+    C:\Users\operator\.codex\sessions
+    C:\Users\operator\.codex\archived_sessions
+    C:\Users\operator\.codex\history.jsonl
+    C:\Users\operator\.codex\session_index.jsonl
+
+[i] CLAUDE CODE
+[i]   2 config files | 14 recognized settings
+[i]   2 session locations | 2 session artifacts | latest activity 2026-06-30
+[i]
+[i] CONFIGURATION
+    8 recognized settings
+    C:\Users\operator\.claude.json
+
+    6 recognized settings
+    C:\Users\operator\.claude\settings.json
+
+[i] SESSION LOCATIONS
+    C:\Users\operator\.claude\sessions
+    C:\Users\operator\.claude\history.jsonl
+
+[i] PRIORITIZED SESSION ARTIFACTS (newest first)
+[+] [1] CODEX | 108.4 KB | modified 2026-07-15
+        C:\Users\operator\.codex\sessions\2026\07\session-a.jsonl
+[+] [1] CLAUDE CODE | 64.0 KB | modified 2026-06-30 | project=demo
+        C:\Users\operator\.claude\projects\demo\session-b.jsonl
+[+] [1] CURSOR | 92.0 KB | modified 2026-07-07
+        C:\Users\operator\.cursor\chats\workspace\session\store.db
+[i]
+[i] LARGEST SESSION ARTIFACTS
+[+] [1] CODEX | 108.4 KB | modified 2026-07-15
+        C:\Users\operator\.codex\sessions\2026\07\session-a.jsonl
+[+] [1] CLAUDE CODE | 64.0 KB | modified 2026-06-30 | project=demo
+        C:\Users\operator\.claude\projects\demo\session-b.jsonl
+[+] [1] CURSOR | 92.0 KB | modified 2026-07-07
+        C:\Users\operator\.cursor\chats\workspace\session\store.db
+[i]
+[i] Additional candidate artifacts: 4

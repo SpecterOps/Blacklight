@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "blacklight-pipeline"
+version = "0.2.0"
+description = "Offline Blacklight downloaded-session analysis"
+requires-python = ">=3.11"
+
+[project.scripts]
+blacklight = "blacklight.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["blacklight*"]

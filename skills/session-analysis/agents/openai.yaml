@@ -1,0 +1,4 @@
+interface:
+  display_name: "Session Analysis"
+  short_description: "Analyze session reports for safe pivots"
+  default_prompt: "Use $session-analysis to analyze this approved JSON and text session-report pair for authorized attack-path pivots."

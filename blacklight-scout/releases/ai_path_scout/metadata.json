@@ -1,0 +1,113 @@
+{
+  "name": "ai_path_scout",
+  "version": "0.2.0",
+  "output_contract_version": "v1",
+  "category": "collection",
+  "description": "No-argument bounded filesystem triage for Windows, macOS, and Linux Scout artifacts, with secret-safe Windows endpoint assessment.",
+  "output_contract": "Assessment-first human filesystem triage with severity-marked findings and up to three ranked session files per detected tool.",
+  "standalone_triage_contract": "Windows executables emit a bounded assessment summary, discovered per-tool details, and up to three ranked session files per tool; verbose and machine record modes are intentionally unavailable",
+  "execution_tiers": {
+    "windows_bof": "No-argument grouped filesystem triage with auth-first and up to three session candidates per detected tool; no body reads or filters",
+    "posix_loaders": "macOS/Linux shared libraries and standalone builds always emit no-argument grouped filesystem triage; supplied CLI tokens are ignored",
+    "windows_standalone_extra": "immediate bounded human endpoint assessment, output redirection, and tool filters",
+    "analysis_boundary": "Executable inspection emits only allowlisted metadata and skips session bodies; downloaded session content parsing belongs to the Python sessions command"
+  },
+  "catalog_source": "blacklight-scout/catalog/targets.json",
+  "artifacts": [
+    {
+      "platform": "windows",
+      "arch": "x64",
+      "object": "ai_path_scout.x64.o",
+      "path": "out/build/scout/ai_path_scout.x64.o",
+      "build_target": "make -C blacklight-scout/native bof",
+      "loader": "execute_coff",
+      "entrypoint": "go"
+    },
+    {
+      "platform": "windows",
+      "arch": "x64",
+      "object": "ai_path_scout-windows-x64.exe",
+      "path": "out/build/scout/ai_path_scout-windows-x64.exe",
+      "build_target": "make -C blacklight-scout/native windows-exe",
+      "loader": "standalone",
+      "entrypoint": "main"
+    },
+    {
+      "platform": "windows",
+      "arch": "anycpu",
+      "object": "ai_path_scout-managed.exe",
+      "path": "out/build/scout/ai_path_scout-managed.exe",
+      "build_target": "make -C blacklight-scout/managed windows-managed-exe",
+      "loader": "apollo_execute_assembly",
+      "entrypoint": "Main",
+      "runtime": ".NET Framework 4.7.2"
+    },
+    {
+      "platform": "darwin",
+      "arch": "universal",
+      "object": "libai_path_scout.dylib",
+      "path": "out/build/scout/libai_path_scout.dylib",
+      "build_target": "make -C blacklight-scout/native dylib",
+      "loader": "poseidon_execute_library",
+      "entrypoint": "bl_scout_run"
+    },
+    {
+      "platform": "linux",
+      "arch": "x64",
+      "object": "libai_path_scout.so",
+      "path": "out/build/scout/libai_path_scout.so",
+      "build_target": "make -C blacklight-scout/native so",
+      "loader": "poseidon_native_call",
+      "entrypoint": "bl_scout_run"
+    }
+  ],
+  "arguments": [
+    {
+      "name": "include_tools",
+      "type": "string",
+      "required": false,
+      "standalone_only": true,
+      "description": "Comma-separated tool IDs to include. Empty means all tools."
+    },
+    {
+      "name": "exclude_tools",
+      "type": "string",
+      "required": false,
+      "standalone_only": true,
+      "description": "Comma-separated tool IDs or aliases to suppress. Empty means no tool exclusions."
+    },
+    {
+      "name": "help",
+      "type": "flag",
+      "required": false,
+      "standalone_only": true,
+      "description": "Print concise usage and mode guidance with --help or -h."
+    },
+    {
+      "name": "version",
+      "type": "flag",
+      "required": false,
+      "standalone_only": true,
+      "description": "Print the executable version and exit."
+    },
+    {
+      "name": "max_depth",
+      "type": "integer",
+      "required": false,
+      "standalone_only": true,
+      "default": 1,
+      "description": "Directory child-count depth for standalone triage. Use 0 to skip child counts."
+    },
+    {
+      "name": "discovery_cap",
+      "type": "integer",
+      "required": false,
+      "standalone_only": true,
+      "default": 5000,
+      "description": "Maximum dynamic-discovery entries for standalone triage. Increase only when incomplete-results output identifies a discovery cap."
+    }
+  ],
+  "loader_arguments": [],
+  "bof_arguments": [],
+  "tools": ["codex", "claude_code", "cursor", "antigravity_cli"]
+}

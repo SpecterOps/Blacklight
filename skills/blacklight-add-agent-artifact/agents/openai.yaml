@@ -1,0 +1,4 @@
+interface:
+  display_name: "Blacklight Agent & Artifact Scaffolder"
+  short_description: "Add Blacklight agents and artifacts safely"
+  default_prompt: "Use $blacklight-add-agent-artifact to add a new supported agent or artifact path across Blacklight catalogs and schemas."

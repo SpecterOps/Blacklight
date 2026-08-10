@@ -1,0 +1,950 @@
+{
+  "schema_version": "blacklight.rules.catalog.v2",
+  "description": "Confirmed artifact surfaces emitted by Blacklight endpoint assessment or consumed by Blacklight session analysis.",
+  "default_confidence": "confirmed",
+  "assessment_coverage_states": {
+    "explicitly_assessed": "The exact path is a static endpoint-assessment target.",
+    "recursively_discovered": "A bounded Scout or SessionSource traversal recognizes matching descendants.",
+    "intentionally_deferred": "The artifact is cataloged for defensive visibility but is not currently emitted or parsed as an individual artifact."
+  },
+  "evidence_sources": {
+    "blacklight.scout.PATH_TARGETS": {
+      "kind": "catalog",
+      "path": "blacklight-scout/catalog/targets.json",
+      "note": "Legacy evidence key retained for artifact compatibility; the JSON target catalog is authoritative."
+    },
+    "blacklight.scout.endpoint_assessment": {
+      "kind": "code",
+      "path": "blacklight-scout/native/ai_path_scout_windows.c",
+      "note": "Native implementation of the count-only configuration, permission, and authentication assessment; managed parity is validated by the executable smoke tests."
+    },
+    "blacklight.analyze.run_session_detail": {
+      "kind": "code",
+      "path": "blacklight/analyze.py",
+      "symbol": "run_session_detail"
+    }
+  },
+  "detection_boundaries": {
+    "windows_roots": [
+      "\\.codex",
+      "\\.claude",
+      "\\.cursor",
+      "\\.gemini\\antigravity-cli"
+    ],
+    "posix_roots": [
+      "/.codex",
+      "/.claude",
+      "/.cursor",
+      "/.gemini/antigravity-cli"
+    ],
+    "standalone_home_files": [
+      ".claude.json"
+    ],
+    "match_policy": "Match an exact root or a descendant separated by the platform path separator. Do not match lookalike siblings such as .codex-old."
+  },
+  "rule_surfaces": [
+    "windows_security_4663",
+    "linux_auditd",
+    "macos_endpoint_security",
+    "osquery_inventory",
+    "windows_acl_inventory",
+    "velociraptor_collection"
+  ],
+  "root_match_fragments": [
+    ".codex/",
+    ".claude/",
+    ".claude.json",
+    ".cursor/",
+    ".gemini/antigravity-cli/"
+  ],
+  "artifacts": [
+    {
+      "id": "codex.root",
+      "tool": "codex",
+      "family": "root",
+      "relative_path": ".codex",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.sessions",
+      "tool": "codex",
+      "family": "sessions",
+      "relative_path": ".codex/sessions",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.analyze.run_session_detail"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.archived_sessions",
+      "tool": "codex",
+      "family": "sessions",
+      "relative_path": ".codex/archived_sessions",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.analyze.run_session_detail"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.session_index",
+      "tool": "codex",
+      "family": "sessions",
+      "relative_path": ".codex/session_index.jsonl",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.analyze.run_session_detail"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.history",
+      "tool": "codex",
+      "family": "history",
+      "relative_path": ".codex/history.jsonl",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.analyze.run_session_detail"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.auth",
+      "tool": "codex",
+      "family": "auth",
+      "relative_path": ".codex/auth.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.sandbox_users",
+      "tool": "codex",
+      "family": "auth",
+      "relative_path": ".codex/.sandbox-secrets/sandbox_users.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.config",
+      "tool": "codex",
+      "family": "config",
+      "relative_path": ".codex/config.toml",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.rules_root",
+      "tool": "codex",
+      "family": "rules",
+      "relative_path": ".codex/rules",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.rules_default",
+      "tool": "codex",
+      "family": "rules",
+      "relative_path": ".codex/rules/default.rules",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.rules_discovered",
+      "tool": "codex",
+      "family": "rules",
+      "relative_path": ".codex/rules/*.rules",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "codex.sandbox_setup_marker",
+      "tool": "codex",
+      "family": "sandbox",
+      "relative_path": ".codex/.sandbox/setup_marker.json",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.sandbox_setup_error",
+      "tool": "codex",
+      "family": "sandbox",
+      "relative_path": ".codex/.sandbox/setup_error.json",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "claude.root",
+      "tool": "claude_code",
+      "family": "root",
+      "relative_path": ".claude",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "claude.sessions",
+      "tool": "claude_code",
+      "family": "sessions",
+      "relative_path": ".claude/sessions",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "claude.projects",
+      "tool": "claude_code",
+      "family": "workspace",
+      "relative_path": ".claude/projects",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.analyze.run_session_detail"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "claude.projects_sessions_index",
+      "tool": "claude_code",
+      "family": "sessions",
+      "relative_path": ".claude/projects/*/sessions-index.json",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "claude.project_mcp_config",
+      "tool": "claude_code",
+      "family": "mcp",
+      "relative_path": ".claude/projects/**/.mcp.json",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "claude.history",
+      "tool": "claude_code",
+      "family": "history",
+      "relative_path": ".claude/history.jsonl",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.analyze.run_session_detail"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "claude.settings",
+      "tool": "claude_code",
+      "family": "config",
+      "relative_path": ".claude/settings.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "claude.root_metadata",
+      "tool": "claude_code",
+      "family": "config",
+      "relative_path": ".claude/.claude.json",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "claude.home_config",
+      "tool": "claude_code",
+      "family": "config",
+      "relative_path": ".claude.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "claude.credentials",
+      "tool": "claude_code",
+      "family": "auth",
+      "relative_path": ".claude/.credentials.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "claude.stats_cache",
+      "tool": "claude_code",
+      "family": "workspace",
+      "relative_path": ".claude/stats-cache.json",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "claude.last_update",
+      "tool": "claude_code",
+      "family": "workspace",
+      "relative_path": ".claude/.last-update-result.json",
+      "path_kind": "file",
+      "priority": "low",
+      "confirmed_by": [
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "claude.mcp_needs_auth",
+      "tool": "claude_code",
+      "family": "mcp",
+      "relative_path": ".claude/mcp-needs-auth-cache.json",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "claude.plugins",
+      "tool": "claude_code",
+      "family": "plugins",
+      "relative_path": ".claude/plugins",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "claude.plugins_blocklist",
+      "tool": "claude_code",
+      "family": "plugins",
+      "relative_path": ".claude/plugins/blocklist.json",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "claude.plugins_install_counts",
+      "tool": "claude_code",
+      "family": "plugins",
+      "relative_path": ".claude/plugins/install-counts-cache.json",
+      "path_kind": "file",
+      "priority": "low",
+      "confirmed_by": [
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "claude.plugins_installed",
+      "tool": "claude_code",
+      "family": "plugins",
+      "relative_path": ".claude/plugins/installed_plugins.json",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "claude.plugins_marketplaces",
+      "tool": "claude_code",
+      "family": "plugins",
+      "relative_path": ".claude/plugins/known_marketplaces.json",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "cursor.root",
+      "tool": "cursor",
+      "family": "root",
+      "relative_path": ".cursor",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.cli_config",
+      "tool": "cursor",
+      "family": "config",
+      "relative_path": ".cursor/cli-config.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.prompt_history",
+      "tool": "cursor",
+      "family": "history",
+      "relative_path": ".cursor/prompt_history.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.projects",
+      "tool": "cursor",
+      "family": "workspace",
+      "relative_path": ".cursor/projects",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.analyze.run_session_detail"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.project_mcp_config",
+      "tool": "cursor",
+      "family": "mcp",
+      "relative_path": ".cursor/projects/**/.mcp.json",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "cursor.chats",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": ".cursor/chats",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.analyze.run_session_detail"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.plans",
+      "tool": "cursor",
+      "family": "plans",
+      "relative_path": ".cursor/plans",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.plan_metadata",
+      "tool": "cursor",
+      "family": "plans",
+      "relative_path": ".cursor/plans/*.plan.md",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "cursor.ai_tracking",
+      "tool": "cursor",
+      "family": "telemetry",
+      "relative_path": ".cursor/ai-tracking/ai-code-tracking.db",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.extensions",
+      "tool": "cursor",
+      "family": "extensions",
+      "relative_path": ".cursor/extensions",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.extensions_manifest",
+      "tool": "cursor",
+      "family": "extensions",
+      "relative_path": ".cursor/extensions/extensions.json",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.skills",
+      "tool": "cursor",
+      "family": "skills",
+      "relative_path": ".cursor/skills",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.skills_cursor",
+      "tool": "cursor",
+      "family": "skills",
+      "relative_path": ".cursor/skills-cursor",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.skills_managed_manifest",
+      "tool": "cursor",
+      "family": "skills",
+      "relative_path": ".cursor/skills-cursor/.cursor-managed-skills-manifest.json",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "cursor.skills_sync_manifest",
+      "tool": "cursor",
+      "family": "skills",
+      "relative_path": ".cursor/skills-cursor/.sync-manifest.json",
+      "path_kind": "file",
+      "priority": "low",
+      "confirmed_by": [
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "cursor.statsig_cache",
+      "tool": "cursor",
+      "family": "workspace",
+      "relative_path": ".cursor/statsig-cache.json",
+      "path_kind": "file",
+      "priority": "low",
+      "confirmed_by": [
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "cursor.chat_store",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": ".cursor/chats/**/store.db",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.analyze.run_session_detail",
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "cursor.agent_transcripts",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": ".cursor/projects/*/agent-transcripts/*/*.jsonl",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.analyze.run_session_detail"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "cursor.worktrees",
+      "tool": "cursor",
+      "family": "worktrees",
+      "relative_path": ".cursor/worktrees",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.snapshots",
+      "tool": "cursor",
+      "family": "snapshots",
+      "relative_path": ".cursor/snapshots",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "antigravity_cli.root",
+      "tool": "antigravity_cli",
+      "family": "root",
+      "relative_path": ".gemini/antigravity-cli",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "antigravity_cli.settings",
+      "tool": "antigravity_cli",
+      "family": "config",
+      "relative_path": ".gemini/antigravity-cli/settings.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "antigravity_cli.mcp_config",
+      "tool": "antigravity_cli",
+      "family": "mcp",
+      "relative_path": ".gemini/antigravity-cli/mcp_config.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "antigravity_cli.history",
+      "tool": "antigravity_cli",
+      "family": "history",
+      "relative_path": ".gemini/antigravity-cli/history.jsonl",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.analyze.run_session_detail"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "antigravity_cli.brain",
+      "tool": "antigravity_cli",
+      "family": "sessions",
+      "relative_path": ".gemini/antigravity-cli/brain",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.analyze.run_session_detail"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "antigravity_cli.transcripts",
+      "tool": "antigravity_cli",
+      "family": "sessions",
+      "relative_path": ".gemini/antigravity-cli/brain/*/.system_generated/logs/transcript*.jsonl",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.analyze.run_session_detail"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "antigravity_cli.conversations",
+      "tool": "antigravity_cli",
+      "family": "sessions",
+      "relative_path": ".gemini/antigravity-cli/conversations",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "antigravity_cli.conversation_db",
+      "tool": "antigravity_cli",
+      "family": "sessions",
+      "relative_path": ".gemini/antigravity-cli/conversations/*.db",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "antigravity_cli.conversation_summaries",
+      "tool": "antigravity_cli",
+      "family": "sessions",
+      "relative_path": ".gemini/antigravity-cli/conversation_summaries.db",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "antigravity_cli.cache",
+      "tool": "antigravity_cli",
+      "family": "cache",
+      "relative_path": ".gemini/antigravity-cli/cache",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "antigravity_cli.cache_onboarding",
+      "tool": "antigravity_cli",
+      "family": "cache",
+      "relative_path": ".gemini/antigravity-cli/cache/onboarding.json",
+      "path_kind": "file",
+      "priority": "low",
+      "confirmed_by": [
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "antigravity_cli.cache_last_conversations",
+      "tool": "antigravity_cli",
+      "family": "cache",
+      "relative_path": ".gemini/antigravity-cli/cache/last_conversations.json",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "antigravity_cli.cache_default_project_id",
+      "tool": "antigravity_cli",
+      "family": "cache",
+      "relative_path": ".gemini/antigravity-cli/cache/default_project_id.txt",
+      "path_kind": "file",
+      "priority": "low",
+      "confirmed_by": [
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "antigravity_cli.logs",
+      "tool": "antigravity_cli",
+      "family": "logs",
+      "relative_path": ".gemini/antigravity-cli/log",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "antigravity_cli.skills",
+      "tool": "antigravity_cli",
+      "family": "skills",
+      "relative_path": ".gemini/antigravity-cli/builtin/skills",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "antigravity_cli.installation_id",
+      "tool": "antigravity_cli",
+      "family": "workspace",
+      "relative_path": ".gemini/antigravity-cli/installation_id",
+      "path_kind": "file",
+      "priority": "low",
+      "confirmed_by": [
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "antigravity_cli.jetski_state",
+      "tool": "antigravity_cli",
+      "family": "workspace",
+      "relative_path": ".gemini/antigravity-cli/jetski_state.pbtxt",
+      "path_kind": "file",
+      "priority": "low",
+      "confirmed_by": [
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "cursor.mcp_config",
+      "tool": "cursor",
+      "family": "mcp",
+      "relative_path": ".cursor/mcp.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.agents",
+      "tool": "cursor",
+      "family": "config",
+      "relative_path": ".cursor/agents",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.plugins",
+      "tool": "cursor",
+      "family": "plugins",
+      "relative_path": ".cursor/plugins",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    }
+  ]
+}

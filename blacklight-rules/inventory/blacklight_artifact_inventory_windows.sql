@@ -1,0 +1,92 @@
+WITH user_homes AS (
+  SELECT username, directory
+  FROM users
+  WHERE directory IS NOT NULL
+    AND directory != ''
+    AND username NOT LIKE '%$'
+    AND lower(directory) NOT IN (
+      'c:\windows\system32\config\systemprofile',
+      'c:\windows\serviceprofiles\localservice',
+      'c:\windows\serviceprofiles\networkservice'
+    )
+),
+targets(tool, family, relative_path) AS (
+  VALUES
+    ('codex', 'root', '\.codex'),
+    ('codex', 'sessions', '\.codex\sessions'),
+    ('codex', 'sessions', '\.codex\archived_sessions'),
+    ('codex', 'auth', '\.codex\auth.json'),
+    ('codex', 'auth', '\.codex\.sandbox-secrets\sandbox_users.json'),
+    ('codex', 'config', '\.codex\config.toml'),
+    ('codex', 'rules', '\.codex\rules'),
+    ('codex', 'rules', '\.codex\rules\default.rules'),
+    ('codex', 'sandbox', '\.codex\.sandbox\setup_marker.json'),
+    ('codex', 'sandbox', '\.codex\.sandbox\setup_error.json'),
+    ('codex', 'sessions', '\.codex\session_index.jsonl'),
+    ('codex', 'history', '\.codex\history.jsonl'),
+    ('claude_code', 'root', '\.claude'),
+    ('claude_code', 'sessions', '\.claude\sessions'),
+    ('claude_code', 'workspace', '\.claude\projects'),
+    ('claude_code', 'auth', '\.claude\.credentials.json'),
+    ('claude_code', 'config', '\.claude\settings.json'),
+    ('claude_code', 'config', '\.claude\.claude.json'),
+    ('claude_code', 'config', '\.claude.json'),
+    ('claude_code', 'history', '\.claude\history.jsonl'),
+    ('claude_code', 'workspace', '\.claude\stats-cache.json'),
+    ('claude_code', 'workspace', '\.claude\.last-update-result.json'),
+    ('claude_code', 'mcp', '\.claude\mcp-needs-auth-cache.json'),
+    ('claude_code', 'plugins', '\.claude\plugins'),
+    ('claude_code', 'plugins', '\.claude\plugins\blocklist.json'),
+    ('claude_code', 'plugins', '\.claude\plugins\install-counts-cache.json'),
+    ('claude_code', 'plugins', '\.claude\plugins\installed_plugins.json'),
+    ('claude_code', 'plugins', '\.claude\plugins\known_marketplaces.json'),
+    ('cursor', 'root', '\.cursor'),
+    ('cursor', 'config', '\.cursor\cli-config.json'),
+    ('cursor', 'mcp', '\.cursor\mcp.json'),
+    ('cursor', 'config', '\.cursor\agents'),
+    ('cursor', 'history', '\.cursor\prompt_history.json'),
+    ('cursor', 'workspace', '\.cursor\projects'),
+    ('cursor', 'sessions', '\.cursor\chats'),
+    ('cursor', 'plans', '\.cursor\plans'),
+    ('cursor', 'telemetry', '\.cursor\ai-tracking\ai-code-tracking.db'),
+    ('cursor', 'extensions', '\.cursor\extensions'),
+    ('cursor', 'plugins', '\.cursor\plugins'),
+    ('cursor', 'extensions', '\.cursor\extensions\extensions.json'),
+    ('cursor', 'skills', '\.cursor\skills'),
+    ('cursor', 'skills', '\.cursor\skills-cursor'),
+    ('cursor', 'skills', '\.cursor\skills-cursor\.cursor-managed-skills-manifest.json'),
+    ('cursor', 'skills', '\.cursor\skills-cursor\.sync-manifest.json'),
+    ('cursor', 'workspace', '\.cursor\statsig-cache.json'),
+    ('cursor', 'worktrees', '\.cursor\worktrees'),
+    ('cursor', 'snapshots', '\.cursor\snapshots'),
+    ('antigravity_cli', 'root', '\.gemini\antigravity-cli'),
+    ('antigravity_cli', 'config', '\.gemini\antigravity-cli\settings.json'),
+    ('antigravity_cli', 'mcp', '\.gemini\antigravity-cli\mcp_config.json'),
+    ('antigravity_cli', 'history', '\.gemini\antigravity-cli\history.jsonl'),
+    ('antigravity_cli', 'sessions', '\.gemini\antigravity-cli\brain'),
+    ('antigravity_cli', 'sessions', '\.gemini\antigravity-cli\conversations'),
+    ('antigravity_cli', 'sessions', '\.gemini\antigravity-cli\conversation_summaries.db'),
+    ('antigravity_cli', 'cache', '\.gemini\antigravity-cli\cache'),
+    ('antigravity_cli', 'cache', '\.gemini\antigravity-cli\cache\onboarding.json'),
+    ('antigravity_cli', 'cache', '\.gemini\antigravity-cli\cache\last_conversations.json'),
+    ('antigravity_cli', 'cache', '\.gemini\antigravity-cli\cache\default_project_id.txt'),
+    ('antigravity_cli', 'logs', '\.gemini\antigravity-cli\log'),
+    ('antigravity_cli', 'skills', '\.gemini\antigravity-cli\builtin\skills'),
+    ('antigravity_cli', 'workspace', '\.gemini\antigravity-cli\installation_id'),
+    ('antigravity_cli', 'workspace', '\.gemini\antigravity-cli\jetski_state.pbtxt')
+)
+SELECT
+  targets.tool,
+  targets.family,
+  user_homes.username,
+  file.path,
+  file.type,
+  file.uid,
+  file.gid,
+  file.mode,
+  file.size,
+  datetime(file.mtime, 'unixepoch') AS mtime_utc
+FROM user_homes
+CROSS JOIN targets
+JOIN file ON file.path = user_homes.directory || targets.relative_path
+ORDER BY targets.tool, targets.family, file.path;

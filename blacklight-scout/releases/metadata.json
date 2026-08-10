@@ -1,0 +1,64 @@
+{
+  "schema_version": "blacklight.scout.release.v1",
+  "bundles": [
+    {
+      "name": "ai_path_scout",
+      "version": "0.2.0",
+      "path": "ai_path_scout",
+      "metadata": "ai_path_scout/metadata.json",
+      "checklist": "../../docs/RELEASE.md",
+      "sample_output": "ai_path_scout/sample_output.txt",
+      "windows_bof_contract": "No-argument grouped filesystem triage with auth-first and up to three session targets per detected tool; no content reads or filters",
+      "posix_loader_contract": "macOS/Linux shared libraries and standalone builds always emit no-argument grouped filesystem triage; supplied CLI tokens are ignored",
+      "standalone_triage_contract": "Windows executables always emit bounded human assessment with up to three session targets per detected tool; verbose and Windows machine modes are unavailable",
+      "artifacts": [
+        {
+          "platform": "windows",
+          "arch": "x64",
+          "object": "ai_path_scout.x64.o",
+          "path": "out/build/scout/ai_path_scout.x64.o",
+          "build_target": "make -C blacklight-scout/native bof",
+          "loader": "execute_coff",
+          "entrypoint": "go"
+        },
+        {
+          "platform": "windows",
+          "arch": "x64",
+          "object": "ai_path_scout-windows-x64.exe",
+          "path": "out/build/scout/ai_path_scout-windows-x64.exe",
+          "build_target": "make -C blacklight-scout/native windows-exe",
+          "loader": "standalone",
+          "entrypoint": "main"
+        },
+        {
+          "platform": "windows",
+          "arch": "anycpu",
+          "object": "ai_path_scout-managed.exe",
+          "path": "out/build/scout/ai_path_scout-managed.exe",
+          "build_target": "make -C blacklight-scout/managed windows-managed-exe",
+          "loader": "apollo_execute_assembly",
+          "entrypoint": "Main",
+          "runtime": ".NET Framework 4.7.2"
+        },
+        {
+          "platform": "darwin",
+          "arch": "universal",
+          "object": "libai_path_scout.dylib",
+          "path": "out/build/scout/libai_path_scout.dylib",
+          "build_target": "make -C blacklight-scout/native dylib",
+          "loader": "poseidon_execute_library",
+          "entrypoint": "bl_scout_run"
+        },
+        {
+          "platform": "linux",
+          "arch": "x64",
+          "object": "libai_path_scout.so",
+          "path": "out/build/scout/libai_path_scout.so",
+          "build_target": "make -C blacklight-scout/native so",
+          "loader": "poseidon_native_call",
+          "entrypoint": "bl_scout_run"
+        }
+      ]
+    }
+  ]
+}

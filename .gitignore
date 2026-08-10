@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local agent/workspace metadata
+.agents/
+.codex/
+
+# PyInstaller
+build/
+dist/
+*.spec.bak
+
+# .NET (managed Scout)
+blacklight-scout/managed/bin/
+blacklight-scout/managed/obj/
+blacklight-scout/managed/*.dll
+blacklight-scout/managed/*.pdb
+blacklight-scout/managed/GeneratedTargets.cs
+
+# Scout native / BOF build artifacts
+blacklight-scout/native/ai_path_scout_smoke
+blacklight-scout/native/ai_path_scout-windows-x64.exe
+blacklight-scout/native/ai_path_scout-macos
+blacklight-scout/native/ai_path_scout-linux-x64
+blacklight-scout/native/libai_path_scout.dylib
+blacklight-scout/native/libai_path_scout.so
+blacklight-scout/native/*.x64.o
+blacklight-scout/bofs/ai_path_scout/*.x64.o
+
+# Local runtime output
+out/
+tmp/
+*.log
+*.o
+
+# Local/generated research evidence
+docs/evidence/
+collected/
+artifacts.md
