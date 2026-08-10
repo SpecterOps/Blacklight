@@ -49,14 +49,5 @@ class ReleaseVersionTests(unittest.TestCase):
         self.assertIn("no-argument", release_index["posix_loader_contract"])
         self.assertIn("no-argument", bundle["execution_tiers"]["posix_loaders"])
 
-    def test_release_index_points_to_canonical_checklist(self) -> None:
-        release_root = self.repo_root / "blacklight-scout" / "releases"
-        release_index = json.loads((release_root / "metadata.json").read_text(encoding="utf-8"))["bundles"][0]
-        checklist = (release_root / release_index["checklist"]).resolve()
-
-        self.assertEqual(checklist, (self.repo_root / "docs" / "RELEASE.md").resolve())
-        self.assertTrue(checklist.is_file())
-
-
 if __name__ == "__main__":
     unittest.main()

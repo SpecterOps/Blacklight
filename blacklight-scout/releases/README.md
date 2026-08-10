@@ -1,6 +1,6 @@
 # Blacklight Scout Release Bundles
 
-This directory holds machine-readable Scout release metadata and representative output. The canonical human release gate is [`docs/RELEASE.md`](../../docs/RELEASE.md).
+This directory holds machine-readable Scout release metadata and representative output.
 
 Local release builds place binaries in `out/build/scout/`; compiled binaries are published through GitHub Releases rather than stored here.
 
@@ -62,4 +62,4 @@ Use the repository wrappers for the Windows/Linux matrix:
 ./blacklight-scout/build.sh
 ```
 
-Build `libai_path_scout.dylib` on Darwin with `make -C blacklight-scout release-macos`. See the canonical [release checklist](../../docs/RELEASE.md) for host-toolchain alternatives, matrix verification, safety gates, packaging, and publishing.
+Build `libai_path_scout.dylib` on Darwin with `make -C blacklight-scout release-macos`. The tagged GitHub Actions release workflow performs the release build matrix, verification, packaging, and publishing.

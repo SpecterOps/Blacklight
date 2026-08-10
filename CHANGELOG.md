@@ -20,7 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - The primary workflow is endpoint assessment or filesystem triage, selective transfer, then `blacklight sessions <download-directory>` on the operator host.
-- The README is the authoritative operator workflow; `docs/RELEASE.md` is the release checklist.
+- The README is the authoritative operator workflow; tagged GitHub Actions workflows handle release builds and publishing.
 
 ### Fixed
 
@@ -36,11 +36,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Shared target catalog synced across BOF, Python Scout, and native loaders (`blacklight-scout/catalog/targets.json`).
 - Blacklight Scout BOF `ai_path_scout` with `BLACKLIGHT_PATH` v1 output.
 - macOS dylib (`libai_path_scout.dylib`) and Linux shared object (`libai_path_scout.so`) native Scout loaders with smoke tests.
-- BOF release bundle with metadata, sample output, and release checklist under `blacklight-scout/releases/ai_path_scout/`.
+- BOF release bundle with metadata and sample output under `blacklight-scout/releases/ai_path_scout/`.
 - Blacklight Analyze parsers for Codex, Claude Code, Cursor, and Antigravity CLI.
 - Session targeting reports with JSON, CSV, status CSV, and compact text outputs.
 - Initial Blacklight Rules content (osquery, Velociraptor, Sigma-style) and regression tests.
-- `docs/RELEASE.md` operator release checklist and v0.1.0 tag instructions.
 - `blacklight workflow local` for one-shot discover, collect, and analyze on the operator host.
 - `blacklight workflow local --in-place` (default when `--package-root` is omitted) for live-root analysis without copying files.
 - Console script entry point: `blacklight` after `pip install -e .`.

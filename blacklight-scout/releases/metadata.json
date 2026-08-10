@@ -6,7 +6,6 @@
       "version": "0.2.0",
       "path": "ai_path_scout",
       "metadata": "ai_path_scout/metadata.json",
-      "checklist": "../../docs/RELEASE.md",
       "sample_output": "ai_path_scout/sample_output.txt",
       "windows_bof_contract": "No-argument grouped filesystem triage with auth-first and up to three session targets per detected tool; no content reads or filters",
       "posix_loader_contract": "macOS/Linux shared libraries and standalone builds always emit no-argument grouped filesystem triage; supplied CLI tokens are ignored",

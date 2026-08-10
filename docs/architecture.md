@@ -211,7 +211,7 @@ Local build products go under `out/build/scout/`. Source directories must not co
 
 `blacklight-scout/releases/` defines release bundle content. `metadata.json` records loader and entry-point contracts. `sample_output.txt` is a sanitized output example. `verify_matrix.py` checks metadata and expected build files.
 
-The root release documentation is `docs/RELEASE.md`. `.github/workflows/release.yml` builds and publishes tagged Scout releases. It checks version agreement, catalog generation, artifact presence, release metadata, and the Windows executable smoke test. The Python unit suite is a separate required check before a release tag.
+`.github/workflows/release.yml` builds and publishes tagged Scout releases. It checks version agreement, catalog generation, artifact presence, release metadata, and the Windows executable smoke test. The Python unit suite is a separate required check before a release tag.
 
 ## Defender Rules
 
@@ -259,7 +259,7 @@ Tests validate expected behavior. They do not prove that every endpoint path exi
 
 The README contains the concise operator workflow; this document defines its boundaries, data flow, and processing limits.
 
-`docs/RELEASE.md` is the release procedure. It defines artifact, version, build, verification, and publishing checks.
+`.github/workflows/release.yml` is the release procedure. It defines the tagged artifact build, verification, packaging, and publishing checks.
 
 `skills/session-analysis/` provides guidance for interpreting Blacklight session-analysis output. `skills/blacklight-add-agent-artifact/` provides a structured process and references for adding support for another agent artifact. These skills support consistent maintenance. They are not part of the runtime data path.
 
