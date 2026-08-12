@@ -10,6 +10,10 @@ Blacklight has two separate phases for Codex, Claude Code, Cursor, and Antigravi
 2. **Choose and download files.** Transfer only the artifacts you want to review.
 3. **Analyze downloads.** Create ranked, redacted local reports.
 
+> [!IMPORTANT]
+> Blog detailing the project: https://specterops.io/blog/2026/08/12/blacklight-ai-agent-endpoint-artifacts/
+
+
 ## What is in this repository
 
 | Directory | Purpose |
