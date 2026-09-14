@@ -1,4 +1,4 @@
-<img src="docs/assets/logo_char.png" width="100%">
+<img src="docs/assets/Blacklight_Vertical_WhiteText.png" width="100%">
 
 # Blacklight
 

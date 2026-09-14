@@ -1,8 +1,5 @@
 # Blacklight Scout
 
-macOS Scout also discovers the [Computer History memory directory](../docs/computer-history.md)
-using metadata only, including a configured memory root. Markdown analysis is not supported.
-
 Blacklight Scout is the **endpoint collection** component of Blacklight. It discovers known AI-tool locations and emits bounded, metadata-only filesystem triage for collection and review.
 
 It does **not** parse session bodies, prompts, responses, credentials, configuration values, SQLite rows, or transcripts. Analyze downloaded artifacts separately with `blacklight sessions <directory>`.
