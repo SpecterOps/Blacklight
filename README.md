@@ -102,7 +102,7 @@ Review partial, unsupported, ambiguous, and failed input records in the report i
 
 ## Research and contributions
 
-Blacklight contributes artifact-focused research to the [Endpoint AI Agent Abuse
+Blacklight pulled some artifact paths from the [Endpoint AI Agent Abuse
 (EAA) technique catalog](https://github.com/0x4D31/endpoint-ai-agent-abuse/blob/main/techniques/index.md).
 Contributions that improve endpoint visibility, evidence handling, or defensive
 guidance are welcome through issues and pull requests.
