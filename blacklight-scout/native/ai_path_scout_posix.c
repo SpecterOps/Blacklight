@@ -165,6 +165,14 @@ static int posix_expand_path(const void *pattern, void *expanded, size_t expande
     }
 
     inline_memset(text_expanded, 0, expanded_size);
+    /* Computer History alone follows the configured memory root. */
+    if (strcmp(text_pattern, "$HOME/.codex/memories/extensions/skysight") == 0) {
+        const char *memory_root = getenv("CODEX_HOME");
+        if (memory_root && *memory_root) {
+            return append_text(text_expanded, expanded_size, memory_root) &&
+                append_text(text_expanded, expanded_size, "/memories/extensions/skysight");
+        }
+    }
     if (strncmp(text_pattern, "$HOME", 5) == 0 &&
         (text_pattern[5] == '\0' || text_pattern[5] == '/')) {
         home = getenv("HOME");

@@ -61,6 +61,7 @@
       "path_separator": "/",
       "targets": [
         {"tool": "codex", "family": "root", "pattern": "$HOME/.codex"},
+        {"tool": "codex", "family": "memories", "pattern": "$HOME/.codex/memories/extensions/skysight"},
         {"tool": "codex", "family": "sessions", "pattern": "$HOME/.codex/sessions"},
         {"tool": "codex", "family": "sessions", "pattern": "$HOME/.codex/archived_sessions"},
         {"tool": "codex", "family": "sessions", "pattern": "$HOME/.codex/session_index.jsonl"},

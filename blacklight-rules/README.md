@@ -15,6 +15,9 @@ Choose the operating system you need:
 
 Each guide covers inventory, setup, validation, triage, and rollout limits.
 
+For macOS Computer History storage, custom-root coverage, and memory access
+review, see [Computer History memories](../docs/computer-history.md).
+
 ## Repository layout
 
 | Folder | Contents |

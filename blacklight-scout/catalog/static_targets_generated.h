@@ -58,6 +58,7 @@ static const bl_path_target_t BL_STATIC_TARGETS[] = {
 #elif defined(__APPLE__)
 static const bl_path_target_t BL_STATIC_TARGETS[] = {
     { "codex", "root", "$HOME/.codex" },
+    { "codex", "memories", "$HOME/.codex/memories/extensions/skysight" },
     { "codex", "sessions", "$HOME/.codex/sessions" },
     { "codex", "sessions", "$HOME/.codex/archived_sessions" },
     { "codex", "sessions", "$HOME/.codex/session_index.jsonl" },

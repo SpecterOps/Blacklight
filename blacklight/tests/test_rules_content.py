@@ -106,7 +106,8 @@ class BlacklightRulesContentTests(unittest.TestCase):
             if item["path_kind"] == "glob":
                 continue
             with self.subTest(artifact=item["id"]):
-                self.assertIn("\\" + item["relative_path"].replace("/", "\\"), windows)
+                if "windows" in item.get("platforms", ["windows", "darwin", "linux"]):
+                    self.assertIn("\\" + item["relative_path"].replace("/", "\\"), windows)
                 self.assertIn("/" + item["relative_path"], posix)
 
     def test_windows_telemetry_configuration_is_audit_first_and_reversible(self) -> None:
