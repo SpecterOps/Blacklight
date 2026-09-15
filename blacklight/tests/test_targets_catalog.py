@@ -56,7 +56,8 @@ class TargetCatalogAlignmentTests(unittest.TestCase):
         windows = relative_patterns("windows")
         for platform in ("darwin", "linux"):
             with self.subTest(platform=platform):
-                self.assertEqual(windows, relative_patterns(platform))
+                expected = windows | ({".codex/memories/extensions/skysight"} if platform == "darwin" else set())
+                self.assertEqual(expected, relative_patterns(platform))
 
     def test_antigravity_mcp_uses_canonical_family(self) -> None:
         for platform in self.catalog["platforms"]:

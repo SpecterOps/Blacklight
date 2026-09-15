@@ -1,4 +1,6 @@
-<img src="docs/assets/logo_char.png" width="100%">
+<p align="center">
+  <img src="docs/assets/Blacklight_Vertical_WhiteText.png" width="75%" alt="Blacklight: Illuminating AI agent artifacts">
+</p>
 
 # Blacklight
 
@@ -12,7 +14,6 @@ Blacklight has two separate phases for Codex, Claude Code, Cursor, and Antigravi
 
 > [!IMPORTANT]
 > Blog detailing the project: https://specterops.io/blog/2026/08/12/blacklight-ai-agent-endpoint-artifacts/
-
 
 ## What is in this repository
 
@@ -98,3 +99,10 @@ Review partial, unsupported, ambiguous, and failed input records in the report i
 | --- | --- |
 | [Architecture](docs/architecture.md) | Boundaries, data flow, and parsing limits. |
 | [Defender Rules](blacklight-rules/README.md) | Inventory, exposure review, and detections. |
+
+## Research and contributions
+
+Blacklight pulled some artifact paths from the [Endpoint AI Agent Abuse
+(EAA) technique catalog](https://github.com/0x4D31/endpoint-ai-agent-abuse/blob/main/techniques/index.md).
+Contributions that improve endpoint visibility, evidence handling, or defensive
+guidance are welcome through issues and pull requests.

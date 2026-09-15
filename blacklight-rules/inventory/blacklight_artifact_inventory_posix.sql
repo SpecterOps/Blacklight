@@ -68,6 +68,9 @@ targets(tool, family, relative_path) AS (
     ('antigravity_cli', 'skills', '/.gemini/antigravity-cli/builtin/skills'),
     ('antigravity_cli', 'workspace', '/.gemini/antigravity-cli/installation_id'),
     ('antigravity_cli', 'workspace', '/.gemini/antigravity-cli/jetski_state.pbtxt')
+  UNION ALL
+  SELECT 'codex', 'memories', '/.codex/memories/extensions/skysight'
+  WHERE EXISTS (SELECT 1 FROM os_version WHERE platform = 'darwin')
 )
 SELECT
   targets.tool,
