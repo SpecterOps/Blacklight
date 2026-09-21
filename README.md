@@ -4,7 +4,7 @@
 
 # Blacklight
 
-Blacklight has two separate phases for Codex, Claude Code, Cursor, and Antigravity CLI artifacts: **Scout** performs endpoint triage; **Session Analysis** parses only the files you choose to download.
+Blacklight has two separate phases: **Scout** performs endpoint triage for Codex, Claude Code, Cursor, Antigravity CLI, and Grok; **Session Analysis** parses selected Codex, Claude Code, Cursor, and Antigravity CLI downloads. Grok support is reconnaissance-only and does not parse file contents.
 
 ## Workflow
 
@@ -25,7 +25,7 @@ Blacklight has two separate phases for Codex, Claude Code, Cursor, and Antigravi
 
 ## Phase 1: Scout the endpoint
 
-Scout performs bounded metadata and filesystem triage. It identifies configuration, rules, authentication metadata, and candidate session paths, but does not read session bodies or print credential/configuration values.
+Scout performs bounded metadata and filesystem triage. It identifies configuration, rules, authentication metadata, and candidate session paths, but does not read session bodies or print credential/configuration values. Grok reconnaissance covers actionable paths under `.grok`, including auth, config, session state, memory, plugins, skills, logs, and worktree state.
 
 ### Build Scout
 
@@ -77,6 +77,8 @@ python3.11 -m pip install -e .
 If `blacklight` is not on `PATH`, use `python3.11 -m blacklight`.
 
 Run the CLI against any local directory containing selected JSONL or SQLite artifacts. Files may be flat, nested, renamed, or duplicated when their content has a recognized schema.
+
+Grok artifacts are not yet supported by Session Analysis. Use Scout and Rules for metadata-only Grok reconnaissance; do not expect `blacklight sessions` to parse Grok files in this release.
 
 Scout ranks session artifacts by newest activity and size, and reports the recognized artifact volume. For a fast review, download the selected ranked JSONL/SQLite artifacts intact; use the reported total to decide whether to collect more. Scout output and reconstructed endpoint paths are not required: any selected local directory can be analyzed.
 

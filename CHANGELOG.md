@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) where applicable.
 
+## [Unreleased]
+
+### Added
+
+- Reconnaissance-only Grok support across Scout and Defender Rules for actionable `.grok` authentication, configuration, session, memory, plugin, skill, log, and worktree paths. Grok file-content parsing remains intentionally deferred.
+
 ## [0.2.0] - 2026-07-23
 
 ### Added

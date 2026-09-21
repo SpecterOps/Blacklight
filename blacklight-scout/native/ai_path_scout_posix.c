@@ -24,7 +24,7 @@ static int g_auto_select_count = 0;
 #define BL_MAX_OPERATOR_TARGETS 256
 #define BL_SESSION_SCAN_LIMIT 10000
 #define BL_SESSION_SCAN_MAX_DEPTH 32
-#define BL_SESSION_TOOL_COUNT 4
+#define BL_SESSION_TOOL_COUNT 5
 #define BL_TOP_SESSIONS_PER_TOOL 3
 #define BL_TOP_SESSION_COUNT (BL_SESSION_TOOL_COUNT * BL_TOP_SESSIONS_PER_TOOL)
 #define BL_DYNAMIC_DISCOVERY_LIMIT 5000
@@ -318,6 +318,9 @@ static int session_file_recognized(const char *tool, const char *path) {
             ends_with_ci(path, "transcript.jsonl") || ends_with_ci(path, "conversation_summaries.db") ||
             (contains_ci_n(path, "conversations", 13) && ends_with_ci(path, ".db"));
     }
+    if (strcmp(tool, "grok") == 0) {
+        return ends_with_ci(path, "updates.jsonl");
+    }
     return 0;
 }
 
@@ -335,6 +338,7 @@ static int session_tool_slot(const char *tool) {
     if (strcmp(tool, "claude_code") == 0) return 1;
     if (strcmp(tool, "cursor") == 0) return 2;
     if (strcmp(tool, "antigravity_cli") == 0) return 3;
+    if (strcmp(tool, "grok") == 0) return 4;
     return -1;
 }
 

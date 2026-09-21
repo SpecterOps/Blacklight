@@ -127,6 +127,7 @@ Monitored roots:
 - `\.claude`
 - `\.cursor`
 - `\.gemini\antigravity-cli`
+- `\.grok`
 - `\.claude.json`
 
 Expected reads by the owning AI client, approved backup or indexing tools, and
@@ -144,7 +145,7 @@ query coalesces common names and falls back to `_raw` for the access token.
 | eval object_name=lower(coalesce(ObjectName,Object_Name)), object_type=lower(coalesce(ObjectType,Object_Type)), process_name=coalesce(ProcessName,Process_Name), actor=coalesce(SubjectUserName,Account_Name,user), access_data=coalesce(AccessList,Accesses,_raw)
 | where object_type="file" AND isnotnull(object_name)
     AND (
-      match(object_name,"(?i)\\\\(?:[.]codex|[.]claude|[.]cursor)(?:\\\\|$)")
+      match(object_name,"(?i)\\\\(?:[.]codex|[.]claude|[.]cursor|[.]grok)(?:\\\\|$)")
       OR match(object_name,"(?i)\\\\[.]gemini\\\\antigravity-cli(?:\\\\|$)")
       OR match(object_name,"(?i)\\\\[.]claude[.]json$")
     )
@@ -154,6 +155,7 @@ query coalesces common names and falls back to `_raw` for the access token.
     match(object_name,"(?i)\\\\[.]claude(?:\\\\|[.]json$)"),"claude_code",
     match(object_name,"(?i)\\\\[.]cursor(?:\\\\|$)"),"cursor",
     match(object_name,"(?i)\\\\[.]gemini\\\\antigravity-cli(?:\\\\|$)"),"antigravity_cli",
+    match(object_name,"(?i)\\\\[.]grok(?:\\\\|$)"),"grok",
     true(),"unknown"
   )
 | stats count min(_time) as first_seen max(_time) as last_seen values(process_name) as process_name values(access_data) as access_data by host actor object_name blacklight_tool
@@ -172,7 +174,7 @@ SecurityEvent
          process_name = tostring(ProcessName),
          actor = tostring(coalesce(Account, AccountName)),
          event_data = tostring(EventData)
-| where object_name matches regex @"\\(?:[.]codex|[.]claude|[.]cursor)(?:\\|$)"
+| where object_name matches regex @"\\(?:[.]codex|[.]claude|[.]cursor|[.]grok)(?:\\|$)"
     or object_name matches regex @"\\[.]gemini\\antigravity-cli(?:\\|$)"
     or object_name matches regex @"\\[.]claude[.]json$"
 | where event_data contains "%%4416"
@@ -181,6 +183,7 @@ SecurityEvent
     object_name matches regex @"\\[.]claude(?:\\|[.]json$)", "claude_code",
     object_name matches regex @"\\[.]cursor(?:\\|$)", "cursor",
     object_name matches regex @"\\[.]gemini\\antigravity-cli(?:\\|$)", "antigravity_cli",
+    object_name matches regex @"\\[.]grok(?:\\|$)", "grok",
     "unknown"
   )
 | project TimeGenerated, Computer, actor, process_name, object_name, AccessMask, blacklight_tool
@@ -209,6 +212,8 @@ winlog.event_data.AccessList: *%%4416* and
   winlog.event_data.ObjectName: *\\.claude.json or
   winlog.event_data.ObjectName: *\\.cursor or
   winlog.event_data.ObjectName: *\\.cursor\\* or
+  winlog.event_data.ObjectName: *\\.grok or
+  winlog.event_data.ObjectName: *\\.grok\\* or
   winlog.event_data.ObjectName: *\\.gemini\\antigravity-cli or
   winlog.event_data.ObjectName: *\\.gemini\\antigravity-cli\\*
 )
@@ -222,7 +227,7 @@ Data source: parser-normalized file events mapping actual reads or opens to UDM
 ```text
 (metadata.event_type = "FILE_READ" OR metadata.event_type = "FILE_OPEN")
 AND (
-  target.file.full_path = /\\(?:[.]codex|[.]claude|[.]cursor)(?:\\|$)/ NOCASE
+  target.file.full_path = /\\(?:[.]codex|[.]claude|[.]cursor|[.]grok)(?:\\|$)/ NOCASE
   OR target.file.full_path = /\\[.]gemini\\antigravity-cli(?:\\|$)/ NOCASE
   OR target.file.full_path = /\\[.]claude[.]json$/ NOCASE
 )
@@ -242,11 +247,11 @@ especially sensitive child files.
 ```kusto
 DeviceProcessEvents
 | extend command_line = tolower(ProcessCommandLine)
-| where command_line matches regex @"\\(?:[.]codex|[.]claude|[.]cursor)(?:\\|$|[\\\"' ])"
+| where command_line matches regex @"\\(?:[.]codex|[.]claude|[.]cursor|[.]grok)(?:\\|$|[\\\"' ])"
     or command_line matches regex @"\\[.]gemini\\antigravity-cli(?:\\|$|[\\\"' ])"
     or command_line matches regex @"\\[.]claude[.]json(?:$|[\"' ])"
 | extend artifact_priority = iff(
-    command_line matches regex @"(auth[.]json|[.]credentials[.]json|config[.]toml|default[.]rules|session_index[.]jsonl|history[.]jsonl|store[.]db|ai-code-tracking[.]db|mcp_config[.]json|conversation_summaries[.]db)",
+    command_line matches regex @"(auth[.]json|[.]credentials[.]json|config[.]toml|default[.]rules|session_index[.]jsonl|history[.]jsonl|store[.]db|ai-code-tracking[.]db|mcp_config[.]json|conversation_summaries[.]db|active_sessions[.]json|session_search[.]sqlite|worktrees[.]db)",
     "high_value_child",
     "root_or_other_child"
   )

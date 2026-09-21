@@ -38,6 +38,16 @@ class BlacklightRulesContentTests(unittest.TestCase):
         ids = [item["id"] for item in self.catalog["artifacts"]]
         self.assertEqual(len(ids), len(set(ids)))
 
+    def test_grok_catalog_is_recon_only_and_detection_covered(self) -> None:
+        grok = [item for item in self.catalog["artifacts"] if item["tool"] == "grok"]
+        self.assertTrue(grok)
+        for item in grok:
+            with self.subTest(artifact=item["id"]):
+                self.assertEqual(item["assessment_coverage"], "explicitly_assessed")
+                self.assertNotIn("blacklight.analyze.run_session_detail", item["confirmed_by"])
+        self.assertIn("\\.grok", self.catalog["detection_boundaries"]["windows_roots"])
+        self.assertIn("/.grok", self.catalog["detection_boundaries"]["posix_roots"])
+
     def test_scout_and_rules_families_align_for_windows_targets(self) -> None:
         catalog_by_path = {item["relative_path"]: item["family"] for item in self.catalog["artifacts"]}
         scout_by_path = {

@@ -99,7 +99,8 @@ function Get-TargetDefinitions {
             @{ Tool = 'claude_code'; RelativePath = '.claude' },
             @{ Tool = 'claude_code'; RelativePath = '.claude.json' },
             @{ Tool = 'cursor'; RelativePath = '.cursor' },
-            @{ Tool = 'antigravity_cli'; RelativePath = '.gemini\antigravity-cli' }
+            @{ Tool = 'antigravity_cli'; RelativePath = '.gemini\antigravity-cli' },
+            @{ Tool = 'grok'; RelativePath = '.grok' }
         )
     }
     @(
@@ -117,7 +118,12 @@ function Get-TargetDefinitions {
         @{ Tool = 'cursor'; RelativePath = '.cursor\ai-tracking\ai-code-tracking.db' },
         @{ Tool = 'antigravity_cli'; RelativePath = '.gemini\antigravity-cli\settings.json' },
         @{ Tool = 'antigravity_cli'; RelativePath = '.gemini\antigravity-cli\mcp_config.json' },
-        @{ Tool = 'antigravity_cli'; RelativePath = '.gemini\antigravity-cli\conversation_summaries.db' }
+        @{ Tool = 'antigravity_cli'; RelativePath = '.gemini\antigravity-cli\conversation_summaries.db' },
+        @{ Tool = 'grok'; RelativePath = '.grok\auth.json' },
+        @{ Tool = 'grok'; RelativePath = '.grok\config.toml' },
+        @{ Tool = 'grok'; RelativePath = '.grok\active_sessions.json' },
+        @{ Tool = 'grok'; RelativePath = '.grok\sessions\session_search.sqlite' },
+        @{ Tool = 'grok'; RelativePath = '.grok\worktrees.db' }
     )
 }
 

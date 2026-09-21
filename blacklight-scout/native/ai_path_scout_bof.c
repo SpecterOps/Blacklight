@@ -21,7 +21,7 @@
 #define MAX_BOF_TRIAGE_TARGETS 256
 #define BOF_SESSION_SCAN_LIMIT 10000
 #define BOF_SESSION_SCAN_MAX_DEPTH 32
-#define BOF_SESSION_TOOL_COUNT 4
+#define BOF_SESSION_TOOL_COUNT 5
 #define BOF_TOP_SESSIONS_PER_TOOL 3
 #define BOF_TOP_SESSION_COUNT (BOF_SESSION_TOOL_COUNT * BOF_TOP_SESSIONS_PER_TOOL)
 #define BOF_DYNAMIC_DISCOVERY_LIMIT 5000
@@ -324,6 +324,9 @@ static int session_file_recognized(const char *tool, const wchar_t *path) {
             wide_ends_with_ascii_ci(path, "transcript.jsonl") || wide_ends_with_ascii_ci(path, "conversation_summaries.db") ||
             (wide_contains_ascii_n_ci(path, "conversations", 13) && wide_ends_with_ascii_ci(path, ".db"));
     }
+    if (ascii_equal_n_ci(tool, c_string_len(tool), "grok")) {
+        return wide_ends_with_ascii_ci(path, "updates.jsonl");
+    }
     return 0;
 }
 
@@ -364,6 +367,7 @@ static int session_tool_slot(const char *tool) {
     if (ascii_equal_n_ci(tool, length, "claude_code")) return 1;
     if (ascii_equal_n_ci(tool, length, "cursor")) return 2;
     if (ascii_equal_n_ci(tool, length, "antigravity_cli")) return 3;
+    if (ascii_equal_n_ci(tool, length, "grok")) return 4;
     return -1;
 }
 

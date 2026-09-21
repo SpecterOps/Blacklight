@@ -109,5 +109,5 @@
   ],
   "loader_arguments": [],
   "bof_arguments": [],
-  "tools": ["codex", "claude_code", "cursor", "antigravity_cli"]
+  "tools": ["codex", "claude_code", "cursor", "antigravity_cli", "grok"]
 }

@@ -93,7 +93,7 @@ namespace Blacklight.Scout.Managed
         private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(250);
         private static readonly List<SessionCandidate> TopSessions = new List<SessionCandidate>();
         private static readonly List<SessionCandidate> LargestSessions = new List<SessionCandidate>();
-        private static readonly int[] SessionArtifactCounts = new int[4];
+        private static readonly int[] SessionArtifactCounts = new int[5];
         private static readonly HashSet<string> SeenSessionArtifacts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private static int _sessionEntriesScanned;
         private static bool _sessionScanPartial;
@@ -296,6 +296,7 @@ namespace Blacklight.Scout.Managed
             if (EqualsCi(tool, filter)) return true;
             if (EqualsCi(tool, "claude_code")) return EqualsCi(filter, "claude") || EqualsCi(filter, "claude-code");
             if (EqualsCi(tool, "antigravity_cli")) return EqualsCi(filter, "antigravity") || EqualsCi(filter, "antigravity-cli") || EqualsCi(filter, "gemini-antigravity-cli");
+            if (EqualsCi(tool, "grok")) return EqualsCi(filter, "grok-cli");
             return false;
         }
 
@@ -748,7 +749,7 @@ namespace Blacklight.Scout.Managed
 
         private static IEnumerable<string> ToolPresentationOrder(List<Result> rows)
         {
-            var preferred = new[] { "codex", "claude_code", "cursor", "antigravity_cli" };
+            var preferred = new[] { "codex", "claude_code", "cursor", "antigravity_cli", "grok" };
             var present = new HashSet<string>(rows.Select(result => result.Tool), StringComparer.Ordinal);
             foreach (var tool in preferred) if (present.Remove(tool)) yield return tool;
             foreach (var tool in present.OrderBy(value => value, StringComparer.Ordinal)) yield return tool;
@@ -760,6 +761,7 @@ namespace Blacklight.Scout.Managed
             if (tool == "claude_code") return "CLAUDE CODE";
             if (tool == "cursor") return "CURSOR";
             if (tool == "antigravity_cli") return "ANTIGRAVITY CLI";
+            if (tool == "grok") return "GROK";
             return tool.Replace('_', ' ').ToUpperInvariant();
         }
 
@@ -1054,6 +1056,8 @@ namespace Blacklight.Scout.Managed
                     path.EndsWith("transcript.jsonl", StringComparison.OrdinalIgnoreCase) ||
                     path.EndsWith("conversation_summaries.db", StringComparison.OrdinalIgnoreCase) ||
                     (ContainsCi(path, "conversations") && path.EndsWith(".db", StringComparison.OrdinalIgnoreCase));
+            if (EqualsCi(tool, "grok"))
+                return path.EndsWith("updates.jsonl", StringComparison.OrdinalIgnoreCase);
             return false;
         }
 
@@ -1063,6 +1067,7 @@ namespace Blacklight.Scout.Managed
             if (EqualsCi(tool, "claude_code")) return 1;
             if (EqualsCi(tool, "cursor")) return 2;
             if (EqualsCi(tool, "antigravity_cli")) return 3;
+            if (EqualsCi(tool, "grok")) return 4;
             return -1;
         }
 
@@ -1145,7 +1150,7 @@ namespace Blacklight.Scout.Managed
         private static void RetainSessionCandidate(List<SessionCandidate> candidates, SessionCandidate candidate, bool largestFirst)
         {
             candidates.Add(candidate);
-            var order = new[] { "codex", "claude_code", "cursor", "antigravity_cli" };
+            var order = new[] { "codex", "claude_code", "cursor", "antigravity_cli", "grok" };
             candidates.Sort((left, right) =>
             {
                 var toolComparison = Array.IndexOf(order, left.Tool).CompareTo(Array.IndexOf(order, right.Tool));

@@ -20,7 +20,33 @@ class TargetCatalogAlignmentTests(unittest.TestCase):
         return [(item["tool"], item["family"], item["pattern"]) for item in profile["targets"]]
 
     def test_catalog_tools_match_scope(self) -> None:
-        self.assertEqual(self.catalog["tools"], ["codex", "claude_code", "cursor", "antigravity_cli"])
+        self.assertEqual(self.catalog["tools"], ["codex", "claude_code", "cursor", "antigravity_cli", "grok"])
+        self.assertEqual(self.release_metadata["tools"], self.catalog["tools"])
+
+    def test_grok_support_is_actionable_recon_only(self) -> None:
+        expected = {
+            ("root", ".grok"),
+            ("config", ".grok/config.toml"),
+            ("auth", ".grok/auth.json"),
+            ("sessions", ".grok/active_sessions.json"),
+            ("sessions", ".grok/sessions"),
+            ("sessions", ".grok/sessions/session_search.sqlite"),
+            ("workspace", ".grok/memory-v2"),
+            ("plugins", ".grok/installed-plugins"),
+            ("plugins", ".grok/marketplace-cache"),
+            ("skills", ".grok/skills"),
+            ("logs", ".grok/logs"),
+            ("logs", ".grok/memtrace"),
+            ("worktrees", ".grok/grove"),
+            ("worktrees", ".grok/worktrees.db"),
+        }
+        actual = {
+            (family, pattern.replace("\\", "/").removeprefix("%USERPROFILE%/"))
+            for tool, family, pattern in self._catalog_tuples("windows")
+            if tool == "grok"
+        }
+        self.assertEqual(actual, expected)
+        self.assertNotIn("grok", (self.repo_root / "blacklight" / "session_input.py").read_text(encoding="utf-8").lower())
 
     def test_windows_catalog_covers_core_tool_families(self) -> None:
         windows = self._catalog_tuples("windows")

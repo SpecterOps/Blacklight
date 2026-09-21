@@ -3,7 +3,7 @@
 ## Purpose
 
 Blacklight helps an operator and a defender work with local AI-agent artifacts.
-It currently supports Codex, Claude Code, Cursor, and Antigravity CLI artifacts.
+Scout and Defender Rules support Codex, Claude Code, Cursor, Antigravity CLI, and Grok artifacts. Python Session Analysis supports the first four tools; Grok is reconnaissance-only and no Grok file-content parser is present.
 
 The repository separates two different tasks:
 
@@ -135,7 +135,7 @@ The report does not include raw message text or raw credential values. It includ
 
 `blacklight-scout/` is the endpoint part of Blacklight. It finds known local artifact paths and emits bounded triage. It supports Windows, Linux, and macOS delivery surfaces.
 
-Scout uses four stable tool identifiers: `codex`, `claude_code`, `cursor`, and `antigravity_cli`. It also accepts common operator aliases in the Windows executable interfaces.
+Scout uses five stable tool identifiers: `codex`, `claude_code`, `cursor`, `antigravity_cli`, and `grok`. It also accepts common operator aliases in the Windows executable interfaces.
 
 ### Scout Catalog
 

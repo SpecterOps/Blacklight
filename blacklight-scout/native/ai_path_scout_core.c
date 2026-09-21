@@ -88,6 +88,13 @@ int bl_loader_filter_tool(const char *value, int value_len, const char **canonic
         }
         return 1;
     }
+    if (bl_ascii_equal_n(value, value_len, "grok") ||
+        bl_ascii_equal_n(value, value_len, "grok-cli")) {
+        if (canonical) {
+            *canonical = "grok";
+        }
+        return 1;
+    }
     if (bl_ascii_equal_n(value, value_len, "antigravity") ||
         bl_ascii_equal_n(value, value_len, "antigravity_cli") ||
         bl_ascii_equal_n(value, value_len, "antigravity-cli") ||
@@ -116,6 +123,10 @@ static int bl_tool_filter_matches(const char *csv, int csv_len, const char *tool
         (bl_csv_contains_token(csv, csv_len, "antigravity") ||
          bl_csv_contains_token(csv, csv_len, "antigravity-cli") ||
          bl_csv_contains_token(csv, csv_len, "gemini-antigravity-cli"))) {
+        return 1;
+    }
+    if (bl_ascii_equals(tool, "grok") &&
+        bl_csv_contains_token(csv, csv_len, "grok-cli")) {
         return 1;
     }
     return 0;
