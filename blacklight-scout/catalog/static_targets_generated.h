@@ -54,6 +54,20 @@ static const bl_path_target_t BL_STATIC_TARGETS[] = {
     { "cursor", "mcp", L"%USERPROFILE%/.cursor/mcp.json" },
     { "cursor", "config", L"%USERPROFILE%/.cursor/agents" },
     { "cursor", "plugins", L"%USERPROFILE%/.cursor/plugins" },
+    { "grok", "root", L"%USERPROFILE%/.grok" },
+    { "grok", "config", L"%USERPROFILE%/.grok/config.toml" },
+    { "grok", "auth", L"%USERPROFILE%/.grok/auth.json" },
+    { "grok", "sessions", L"%USERPROFILE%/.grok/active_sessions.json" },
+    { "grok", "sessions", L"%USERPROFILE%/.grok/sessions" },
+    { "grok", "sessions", L"%USERPROFILE%/.grok/sessions/session_search.sqlite" },
+    { "grok", "workspace", L"%USERPROFILE%/.grok/memory-v2" },
+    { "grok", "plugins", L"%USERPROFILE%/.grok/installed-plugins" },
+    { "grok", "plugins", L"%USERPROFILE%/.grok/marketplace-cache" },
+    { "grok", "skills", L"%USERPROFILE%/.grok/skills" },
+    { "grok", "logs", L"%USERPROFILE%/.grok/logs" },
+    { "grok", "logs", L"%USERPROFILE%/.grok/memtrace" },
+    { "grok", "worktrees", L"%USERPROFILE%/.grok/grove" },
+    { "grok", "worktrees", L"%USERPROFILE%/.grok/worktrees.db" },
 };
 #elif defined(__APPLE__)
 static const bl_path_target_t BL_STATIC_TARGETS[] = {
@@ -106,6 +120,20 @@ static const bl_path_target_t BL_STATIC_TARGETS[] = {
     { "cursor", "mcp", "$HOME/.cursor/mcp.json" },
     { "cursor", "config", "$HOME/.cursor/agents" },
     { "cursor", "plugins", "$HOME/.cursor/plugins" },
+    { "grok", "root", "$HOME/.grok" },
+    { "grok", "config", "$HOME/.grok/config.toml" },
+    { "grok", "auth", "$HOME/.grok/auth.json" },
+    { "grok", "sessions", "$HOME/.grok/active_sessions.json" },
+    { "grok", "sessions", "$HOME/.grok/sessions" },
+    { "grok", "sessions", "$HOME/.grok/sessions/session_search.sqlite" },
+    { "grok", "workspace", "$HOME/.grok/memory-v2" },
+    { "grok", "plugins", "$HOME/.grok/installed-plugins" },
+    { "grok", "plugins", "$HOME/.grok/marketplace-cache" },
+    { "grok", "skills", "$HOME/.grok/skills" },
+    { "grok", "logs", "$HOME/.grok/logs" },
+    { "grok", "logs", "$HOME/.grok/memtrace" },
+    { "grok", "worktrees", "$HOME/.grok/grove" },
+    { "grok", "worktrees", "$HOME/.grok/worktrees.db" },
 };
 #else
 static const bl_path_target_t BL_STATIC_TARGETS[] = {
@@ -157,6 +185,20 @@ static const bl_path_target_t BL_STATIC_TARGETS[] = {
     { "cursor", "mcp", "$HOME/.cursor/mcp.json" },
     { "cursor", "config", "$HOME/.cursor/agents" },
     { "cursor", "plugins", "$HOME/.cursor/plugins" },
+    { "grok", "root", "$HOME/.grok" },
+    { "grok", "config", "$HOME/.grok/config.toml" },
+    { "grok", "auth", "$HOME/.grok/auth.json" },
+    { "grok", "sessions", "$HOME/.grok/active_sessions.json" },
+    { "grok", "sessions", "$HOME/.grok/sessions" },
+    { "grok", "sessions", "$HOME/.grok/sessions/session_search.sqlite" },
+    { "grok", "workspace", "$HOME/.grok/memory-v2" },
+    { "grok", "plugins", "$HOME/.grok/installed-plugins" },
+    { "grok", "plugins", "$HOME/.grok/marketplace-cache" },
+    { "grok", "skills", "$HOME/.grok/skills" },
+    { "grok", "logs", "$HOME/.grok/logs" },
+    { "grok", "logs", "$HOME/.grok/memtrace" },
+    { "grok", "worktrees", "$HOME/.grok/grove" },
+    { "grok", "worktrees", "$HOME/.grok/worktrees.db" },
 };
 #endif
 

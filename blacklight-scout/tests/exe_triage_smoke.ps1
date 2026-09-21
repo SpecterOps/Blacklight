@@ -144,7 +144,7 @@ not-json
         }
         if ($removedSummaryExitCode -ne 2) { throw "$exe still accepts removed --summary mode: $($removedSummary -join ' ')" }
         $version = (& $exe --version) -join "`n"
-        if ($LASTEXITCODE -ne 0 -or $version -notmatch "0\.2\.0") { throw "$exe --version failed" }
+        if ($LASTEXITCODE -ne 0 -or $version -notmatch "0\.2\.1") { throw "$exe --version failed" }
 
         foreach ($removedMode in @("--paths", "--triage", "--analyze", "--tsv", "--jsonl")) {
             Assert-CommandFails -Executable $exe -Arguments @($removedMode)

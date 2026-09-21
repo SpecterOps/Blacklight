@@ -73,7 +73,21 @@ targets(tool, family, relative_path) AS (
     ('antigravity_cli', 'logs', '\.gemini\antigravity-cli\log'),
     ('antigravity_cli', 'skills', '\.gemini\antigravity-cli\builtin\skills'),
     ('antigravity_cli', 'workspace', '\.gemini\antigravity-cli\installation_id'),
-    ('antigravity_cli', 'workspace', '\.gemini\antigravity-cli\jetski_state.pbtxt')
+    ('antigravity_cli', 'workspace', '\.gemini\antigravity-cli\jetski_state.pbtxt'),
+    ('grok', 'root', '\.grok'),
+    ('grok', 'config', '\.grok\config.toml'),
+    ('grok', 'auth', '\.grok\auth.json'),
+    ('grok', 'sessions', '\.grok\active_sessions.json'),
+    ('grok', 'sessions', '\.grok\sessions'),
+    ('grok', 'sessions', '\.grok\sessions\session_search.sqlite'),
+    ('grok', 'workspace', '\.grok\memory-v2'),
+    ('grok', 'plugins', '\.grok\installed-plugins'),
+    ('grok', 'plugins', '\.grok\marketplace-cache'),
+    ('grok', 'skills', '\.grok\skills'),
+    ('grok', 'logs', '\.grok\logs'),
+    ('grok', 'logs', '\.grok\memtrace'),
+    ('grok', 'worktrees', '\.grok\grove'),
+    ('grok', 'worktrees', '\.grok\worktrees.db')
 )
 SELECT
   targets.tool,

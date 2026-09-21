@@ -1,6 +1,6 @@
 {
   "schema_version": "blacklight.scout.catalog.v1",
-  "tools": ["codex", "claude_code", "cursor", "antigravity_cli"],
+  "tools": ["codex", "claude_code", "cursor", "antigravity_cli", "grok"],
   "platforms": {
     "windows": {
       "home_var": "%USERPROFILE%",
@@ -53,7 +53,21 @@
         {"tool": "antigravity_cli", "family": "skills", "pattern": "%USERPROFILE%/.gemini/antigravity-cli/builtin/skills"},
         {"tool": "cursor", "family": "mcp", "pattern": "%USERPROFILE%/.cursor/mcp.json"},
         {"tool": "cursor", "family": "config", "pattern": "%USERPROFILE%/.cursor/agents"},
-        {"tool": "cursor", "family": "plugins", "pattern": "%USERPROFILE%/.cursor/plugins"}
+        {"tool": "cursor", "family": "plugins", "pattern": "%USERPROFILE%/.cursor/plugins"},
+        {"tool": "grok", "family": "root", "pattern": "%USERPROFILE%/.grok"},
+        {"tool": "grok", "family": "config", "pattern": "%USERPROFILE%/.grok/config.toml"},
+        {"tool": "grok", "family": "auth", "pattern": "%USERPROFILE%/.grok/auth.json"},
+        {"tool": "grok", "family": "sessions", "pattern": "%USERPROFILE%/.grok/active_sessions.json"},
+        {"tool": "grok", "family": "sessions", "pattern": "%USERPROFILE%/.grok/sessions"},
+        {"tool": "grok", "family": "sessions", "pattern": "%USERPROFILE%/.grok/sessions/session_search.sqlite"},
+        {"tool": "grok", "family": "workspace", "pattern": "%USERPROFILE%/.grok/memory-v2"},
+        {"tool": "grok", "family": "plugins", "pattern": "%USERPROFILE%/.grok/installed-plugins"},
+        {"tool": "grok", "family": "plugins", "pattern": "%USERPROFILE%/.grok/marketplace-cache"},
+        {"tool": "grok", "family": "skills", "pattern": "%USERPROFILE%/.grok/skills"},
+        {"tool": "grok", "family": "logs", "pattern": "%USERPROFILE%/.grok/logs"},
+        {"tool": "grok", "family": "logs", "pattern": "%USERPROFILE%/.grok/memtrace"},
+        {"tool": "grok", "family": "worktrees", "pattern": "%USERPROFILE%/.grok/grove"},
+        {"tool": "grok", "family": "worktrees", "pattern": "%USERPROFILE%/.grok/worktrees.db"}
       ]
     },
     "darwin": {
@@ -108,7 +122,21 @@
         {"tool": "antigravity_cli", "family": "skills", "pattern": "$HOME/.gemini/antigravity-cli/builtin/skills"},
         {"tool": "cursor", "family": "mcp", "pattern": "$HOME/.cursor/mcp.json"},
         {"tool": "cursor", "family": "config", "pattern": "$HOME/.cursor/agents"},
-        {"tool": "cursor", "family": "plugins", "pattern": "$HOME/.cursor/plugins"}
+        {"tool": "cursor", "family": "plugins", "pattern": "$HOME/.cursor/plugins"},
+        {"tool": "grok", "family": "root", "pattern": "$HOME/.grok"},
+        {"tool": "grok", "family": "config", "pattern": "$HOME/.grok/config.toml"},
+        {"tool": "grok", "family": "auth", "pattern": "$HOME/.grok/auth.json"},
+        {"tool": "grok", "family": "sessions", "pattern": "$HOME/.grok/active_sessions.json"},
+        {"tool": "grok", "family": "sessions", "pattern": "$HOME/.grok/sessions"},
+        {"tool": "grok", "family": "sessions", "pattern": "$HOME/.grok/sessions/session_search.sqlite"},
+        {"tool": "grok", "family": "workspace", "pattern": "$HOME/.grok/memory-v2"},
+        {"tool": "grok", "family": "plugins", "pattern": "$HOME/.grok/installed-plugins"},
+        {"tool": "grok", "family": "plugins", "pattern": "$HOME/.grok/marketplace-cache"},
+        {"tool": "grok", "family": "skills", "pattern": "$HOME/.grok/skills"},
+        {"tool": "grok", "family": "logs", "pattern": "$HOME/.grok/logs"},
+        {"tool": "grok", "family": "logs", "pattern": "$HOME/.grok/memtrace"},
+        {"tool": "grok", "family": "worktrees", "pattern": "$HOME/.grok/grove"},
+        {"tool": "grok", "family": "worktrees", "pattern": "$HOME/.grok/worktrees.db"}
       ]
     },
     "linux": {
@@ -162,7 +190,21 @@
         {"tool": "antigravity_cli", "family": "skills", "pattern": "$HOME/.gemini/antigravity-cli/builtin/skills"},
         {"tool": "cursor", "family": "mcp", "pattern": "$HOME/.cursor/mcp.json"},
         {"tool": "cursor", "family": "config", "pattern": "$HOME/.cursor/agents"},
-        {"tool": "cursor", "family": "plugins", "pattern": "$HOME/.cursor/plugins"}
+        {"tool": "cursor", "family": "plugins", "pattern": "$HOME/.cursor/plugins"},
+        {"tool": "grok", "family": "root", "pattern": "$HOME/.grok"},
+        {"tool": "grok", "family": "config", "pattern": "$HOME/.grok/config.toml"},
+        {"tool": "grok", "family": "auth", "pattern": "$HOME/.grok/auth.json"},
+        {"tool": "grok", "family": "sessions", "pattern": "$HOME/.grok/active_sessions.json"},
+        {"tool": "grok", "family": "sessions", "pattern": "$HOME/.grok/sessions"},
+        {"tool": "grok", "family": "sessions", "pattern": "$HOME/.grok/sessions/session_search.sqlite"},
+        {"tool": "grok", "family": "workspace", "pattern": "$HOME/.grok/memory-v2"},
+        {"tool": "grok", "family": "plugins", "pattern": "$HOME/.grok/installed-plugins"},
+        {"tool": "grok", "family": "plugins", "pattern": "$HOME/.grok/marketplace-cache"},
+        {"tool": "grok", "family": "skills", "pattern": "$HOME/.grok/skills"},
+        {"tool": "grok", "family": "logs", "pattern": "$HOME/.grok/logs"},
+        {"tool": "grok", "family": "logs", "pattern": "$HOME/.grok/memtrace"},
+        {"tool": "grok", "family": "worktrees", "pattern": "$HOME/.grok/grove"},
+        {"tool": "grok", "family": "worktrees", "pattern": "$HOME/.grok/worktrees.db"}
       ]
     }
   }

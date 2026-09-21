@@ -3,7 +3,7 @@
   "bundles": [
     {
       "name": "ai_path_scout",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "path": "ai_path_scout",
       "metadata": "ai_path_scout/metadata.json",
       "sample_output": "ai_path_scout/sample_output.txt",

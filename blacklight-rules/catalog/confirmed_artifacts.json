@@ -29,13 +29,15 @@
       "\\.codex",
       "\\.claude",
       "\\.cursor",
-      "\\.gemini\\antigravity-cli"
+      "\\.gemini\\antigravity-cli",
+      "\\.grok"
     ],
     "posix_roots": [
       "/.codex",
       "/.claude",
       "/.cursor",
-      "/.gemini/antigravity-cli"
+      "/.gemini/antigravity-cli",
+      "/.grok"
     ],
     "standalone_home_files": [
       ".claude.json"
@@ -55,7 +57,8 @@
     ".claude/",
     ".claude.json",
     ".cursor/",
-    ".gemini/antigravity-cli/"
+    ".gemini/antigravity-cli/",
+    ".grok/"
   ],
   "artifacts": [
     {
@@ -959,6 +962,174 @@
       "family": "plugins",
       "relative_path": ".cursor/plugins",
       "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "grok.root",
+      "tool": "grok",
+      "family": "root",
+      "relative_path": ".grok",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "grok.config",
+      "tool": "grok",
+      "family": "config",
+      "relative_path": ".grok/config.toml",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "grok.auth",
+      "tool": "grok",
+      "family": "auth",
+      "relative_path": ".grok/auth.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "grok.active_sessions",
+      "tool": "grok",
+      "family": "sessions",
+      "relative_path": ".grok/active_sessions.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "grok.sessions",
+      "tool": "grok",
+      "family": "sessions",
+      "relative_path": ".grok/sessions",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "grok.session_search",
+      "tool": "grok",
+      "family": "sessions",
+      "relative_path": ".grok/sessions/session_search.sqlite",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "grok.memory_v2",
+      "tool": "grok",
+      "family": "workspace",
+      "relative_path": ".grok/memory-v2",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "grok.installed_plugins",
+      "tool": "grok",
+      "family": "plugins",
+      "relative_path": ".grok/installed-plugins",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "grok.marketplace_cache",
+      "tool": "grok",
+      "family": "plugins",
+      "relative_path": ".grok/marketplace-cache",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "grok.skills",
+      "tool": "grok",
+      "family": "skills",
+      "relative_path": ".grok/skills",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "grok.logs",
+      "tool": "grok",
+      "family": "logs",
+      "relative_path": ".grok/logs",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "grok.memtrace",
+      "tool": "grok",
+      "family": "logs",
+      "relative_path": ".grok/memtrace",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "grok.grove",
+      "tool": "grok",
+      "family": "worktrees",
+      "relative_path": ".grok/grove",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "grok.worktrees_db",
+      "tool": "grok",
+      "family": "worktrees",
+      "relative_path": ".grok/worktrees.db",
+      "path_kind": "file",
       "priority": "medium",
       "confirmed_by": [
         "blacklight.scout.PATH_TARGETS"

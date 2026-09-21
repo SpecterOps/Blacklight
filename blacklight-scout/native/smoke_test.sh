@@ -20,12 +20,18 @@ mkdir -p \
   "$fixture_home/.cursor/plugins" \
   "$fixture_home/.cursor/plans" \
   "$fixture_home/.cursor/chats/workspace/session" \
-  "$fixture_home/.cursor/projects/workspace/agent-transcripts/cursor-session"
+  "$fixture_home/.cursor/projects/workspace/agent-transcripts/cursor-session" \
+  "$fixture_home/.grok/sessions/workspace/session"
 touch \
   "$fixture_home/.codex/auth.json" \
   "$fixture_home/.codex/config.toml" \
   "$fixture_home/.codex/.sandbox/setup_marker.json" \
   "$fixture_home/.claude/.credentials.json"
+touch \
+  "$fixture_home/.grok/auth.json" \
+  "$fixture_home/.grok/config.toml" \
+  "$fixture_home/.grok/active_sessions.json" \
+  "$fixture_home/.grok/sessions/session_search.sqlite"
 printf '%s\n' 'prefix_rule(pattern=["git", "diff"], decision="deny")' > "$fixture_home/.codex/rules/project.rules"
 printf '%s\n' '{}' > "$fixture_home/.claude/projects/project with space/.mcp.json"
 printf '%s\n' '{}' > "$fixture_home/.cursor/projects/workspace/.mcp.json"
@@ -48,6 +54,7 @@ touch -t 202607010000 "$fixture_home/.codex/sessions/excluded-fourth.jsonl"
 truncate -s 500 "$fixture_home/.claude/projects/project with space/claude-session.jsonl"
 truncate -s 400 "$fixture_home/.cursor/chats/workspace/session/store.db"
 truncate -s 600 "$fixture_home/.cursor/projects/workspace/agent-transcripts/cursor-session/cursor-session.jsonl"
+truncate -s 700 "$fixture_home/.grok/sessions/workspace/session/updates.jsonl"
 truncate -s 5000 "$fixture_home/not-a-session.jsonl"
 ln -s "$fixture_home/not-a-session.jsonl" "$fixture_home/.codex/sessions/linked.jsonl"
 
@@ -66,6 +73,16 @@ for dynamic_path in \
   "$fixture_home/.cursor/projects/workspace/.mcp.json"; do
   echo "$output" | grep -Fq "$dynamic_path" || {
     echo "smoke test failed: missing dynamically discovered path $dynamic_path" >&2
+    exit 1
+  }
+done
+for grok_path in \
+  "$fixture_home/.grok/auth.json" \
+  "$fixture_home/.grok/config.toml" \
+  "$fixture_home/.grok/sessions/session_search.sqlite" \
+  "$fixture_home/.grok/sessions/workspace/session/updates.jsonl"; do
+  echo "$output" | grep -Fq "$grok_path" || {
+    echo "smoke test failed: missing Grok reconnaissance path $grok_path" >&2
     exit 1
   }
 done
@@ -136,7 +153,7 @@ for expected in '600 B' '500 B' '100 B'; do
     exit 1
   }
 done
-echo "$output" | grep -Fq '[i]   Session artifacts:    7' || {
+echo "$output" | grep -Fq '[i]   Session artifacts:    8' || {
   echo "smoke test failed: session-artifact volume summary was missing" >&2
   exit 1
 }
@@ -145,8 +162,8 @@ echo "$output" | grep -Fq '[+] [1] codex | 100 B | modified 2026-07-04' || {
   exit 1
 }
 ranked_count="$(echo "$output" | grep -Ec '^\[\+\] \[[1-3]\].*\| modified [0-9]{4}-[0-9]{2}-[0-9]{2}')"
-[ "$ranked_count" -eq 6 ] || {
-  echo "smoke test failed: expected up to three ranked session files per tool" >&2
+[ "$ranked_count" -eq 7 ] || {
+  echo "smoke test failed: expected ranked session files for Codex, Claude Code, Cursor, and Grok" >&2
   exit 1
 }
 echo "$output" | grep -Fxq "        $fixture_home/.cursor/projects/workspace/agent-transcripts/cursor-session/cursor-session.jsonl" || {

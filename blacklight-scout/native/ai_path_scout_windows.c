@@ -32,10 +32,10 @@ static int g_auto_select_count = 0;
 #ifndef BL_MAX_OPERATOR_TARGETS
 #define BL_MAX_OPERATOR_TARGETS 256
 #endif
-#define BL_SCOUT_VERSION "0.2.0"
+#define BL_SCOUT_VERSION "0.2.1"
 #define BL_SESSION_SCAN_LIMIT 10000
 #define BL_SESSION_SCAN_MAX_DEPTH 32
-#define BL_SESSION_TOOL_COUNT 4
+#define BL_SESSION_TOOL_COUNT 5
 #define BL_TOP_SESSIONS_PER_TOOL 3
 #define BL_TOP_SESSION_COUNT (BL_SESSION_TOOL_COUNT * BL_TOP_SESSIONS_PER_TOOL)
 #define BL_MAX_CHILD_COUNT_DEPTH 4
@@ -469,6 +469,9 @@ static int session_file_recognized(const char *tool, const wchar_t *path) {
             wide_ends_with_ascii_ci(path, "conversation_summaries.db") ||
             (wide_contains_ascii_n_ci(path, "conversations", 13) && wide_ends_with_ascii_ci(path, ".db"));
     }
+    if (strcmp(tool, "grok") == 0) {
+        return wide_ends_with_ascii_ci(path, "updates.jsonl");
+    }
     return 0;
 }
 
@@ -488,6 +491,7 @@ static int session_tool_slot(const char *tool) {
     if (strcmp(tool, "claude_code") == 0) return 1;
     if (strcmp(tool, "cursor") == 0) return 2;
     if (strcmp(tool, "antigravity_cli") == 0) return 3;
+    if (strcmp(tool, "grok") == 0) return 4;
     return -1;
 }
 
@@ -924,6 +928,10 @@ static void inspect_known_artifact(bl_operator_target_t *target) {
         "sandbox_mode", "approval_policy", "permissions"
     };
     if (!target || !target_is_file(target)) return;
+    if (target_tool_is(target, "grok")) {
+        append_safe_signal(target, "inspection", "deferred");
+        return;
+    }
     if (family_is_session(target->family)) return;
     if (!path_has_inspectable_extension(target->path)) return;
     if (target->file_attributes & FILE_ATTRIBUTE_REPARSE_POINT) {
@@ -1036,7 +1044,7 @@ static int target_metadata_field_count(const bl_operator_target_t *target) {
 
 static int target_metadata_parsed(const bl_operator_target_t *target) {
     return target && target_is_file(target) && path_has_inspectable_extension(target->path) &&
-        !target_inspection_unavailable(target);
+        !target_inspection_unavailable(target) && strstr(target->safe_signals, "inspection=deferred") == NULL;
 }
 
 static int compact_category(const bl_operator_target_t *target) {
@@ -1056,6 +1064,7 @@ static const char *tool_display_name(const char *tool) {
     if (strcmp(tool, "claude_code") == 0) return "CLAUDE CODE";
     if (strcmp(tool, "cursor") == 0) return "CURSOR";
     if (strcmp(tool, "antigravity_cli") == 0) return "ANTIGRAVITY CLI";
+    if (strcmp(tool, "grok") == 0) return "GROK";
     return tool;
 }
 
@@ -1107,37 +1116,37 @@ static int target_signal_count(const bl_operator_target_t *target, const char *p
 }
 
 static void print_assessment_summary(void) {
-    static const char *tools[] = {"codex", "claude_code", "cursor", "antigravity_cli"};
+    static const char *tools[] = {"codex", "claude_code", "cursor", "antigravity_cli", "grok"};
     int i;
     int tool_count = 0, auth_count = 0, trusted = 0, sessions = 0, session_artifacts = 0;
     int partial = g_operator_target_overflow || g_dynamic_scan_partial || g_session_scan_partial;
-    int refresh_seen[4] = {0, 0, 0, 0};
-    int recent_seen[4] = {0, 0, 0, 0};
+    int refresh_seen[BL_SESSION_TOOL_COUNT] = {0};
+    int recent_seen[BL_SESSION_TOOL_COUNT] = {0};
     for (i = 0; i < g_operator_target_count; i++) {
         const bl_operator_target_t *target = &g_operator_targets[i];
         int tool_index;
         trusted += target_signal_count(target, "trusted=");
         if (compact_category(target) == 3) auth_count++;
         if (compact_category(target) == 4) sessions++;
-        for (tool_index = 0; tool_index < 4; tool_index++) {
+        for (tool_index = 0; tool_index < BL_SESSION_TOOL_COUNT; tool_index++) {
             if (strcmp(target->tool, tools[tool_index]) != 0) continue;
             if (target->refresh_field_count > 0) refresh_seen[tool_index] = 1;
             if (compact_category(target) == 4 && target->last_write_time.dwLowDateTime) recent_seen[tool_index] = 1;
             break;
         }
     }
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < BL_SESSION_TOOL_COUNT; i++) {
         int j;
         for (j = 0; j < g_operator_target_count; j++) if (strcmp(g_operator_targets[j].tool, tools[i]) == 0) { tool_count++; break; }
     }
     for (i = 0; i < BL_SESSION_TOOL_COUNT; i++) session_artifacts += g_session_artifact_counts[i];
     printf("[i] ASSESSMENT SUMMARY\n[i]   Tools detected:       %d\n", tool_count);
     if (auth_count) { printf("[+]   Credential stores:    "); print_count_label(auth_count, "file", "files"); printf("\n"); }
-    for (i = 0; i < 4; i++) if (refresh_seen[i]) { int first = 1, j; printf("[+]   Refresh material:     "); for (j = 0; j < 4; j++) if (refresh_seen[j]) { printf("%s%s", first ? "" : ", ", tool_display_name(tools[j])); first = 0; } printf("\n"); break; }
+    for (i = 0; i < BL_SESSION_TOOL_COUNT; i++) if (refresh_seen[i]) { int first = 1, j; printf("[+]   Refresh material:     "); for (j = 0; j < BL_SESSION_TOOL_COUNT; j++) if (refresh_seen[j]) { printf("%s%s", first ? "" : ", ", tool_display_name(tools[j])); first = 0; } printf("\n"); break; }
     if (trusted) printf("[+]   Trusted projects:     %d\n", trusted);
     if (sessions) printf("[i]   Session locations:    %d\n", sessions);
     if (sessions || g_session_scan_partial) printf("[i]   Session artifacts:    %d%s\n", session_artifacts, g_session_scan_partial ? " (partial scan)" : "");
-    for (i = 0; i < 4; i++) if (recent_seen[i]) { int first = 1, j; printf("[i]   Recent activity:      "); for (j = 0; j < 4; j++) if (recent_seen[j]) { printf("%s%s", first ? "" : ", ", tool_display_name(tools[j])); first = 0; } printf("\n"); break; }
+    for (i = 0; i < BL_SESSION_TOOL_COUNT; i++) if (recent_seen[i]) { int first = 1, j; printf("[i]   Recent activity:      "); for (j = 0; j < BL_SESSION_TOOL_COUNT; j++) if (recent_seen[j]) { printf("%s%s", first ? "" : ", ", tool_display_name(tools[j])); first = 0; } printf("\n"); break; }
     printf("%s   Discovery status:     %s\n[i]\n", partial ? "[!]" : "[i]", partial ? "PARTIAL" : "COMPLETE");
 }
 
@@ -1651,7 +1660,7 @@ static void print_session_files(const char *heading, const bl_session_candidate_
 }
 
 static void print_operator_triage_summary(void) {
-    static const char *tools[] = {"codex", "claude_code", "cursor", "antigravity_cli"};
+    static const char *tools[] = {"codex", "claude_code", "cursor", "antigravity_cli", "grok"};
     int i;
     printf("[i] Blacklight endpoint assessment\n[i]\n");
     if (g_operator_target_count <= 0) {

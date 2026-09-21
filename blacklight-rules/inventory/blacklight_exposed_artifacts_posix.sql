@@ -25,7 +25,14 @@ targets(tool, family, relative_path) AS (
     ('cursor', 'telemetry', '/.cursor/ai-tracking/ai-code-tracking.db'),
     ('antigravity_cli', 'config', '/.gemini/antigravity-cli/settings.json'),
     ('antigravity_cli', 'mcp', '/.gemini/antigravity-cli/mcp_config.json'),
-    ('antigravity_cli', 'sessions', '/.gemini/antigravity-cli/conversation_summaries.db')
+    ('antigravity_cli', 'sessions', '/.gemini/antigravity-cli/conversation_summaries.db'),
+    ('grok', 'config', '/.grok/config.toml'),
+    ('grok', 'auth', '/.grok/auth.json'),
+    ('grok', 'sessions', '/.grok/active_sessions.json'),
+    ('grok', 'sessions', '/.grok/sessions/session_search.sqlite'),
+    ('grok', 'workspace', '/.grok/memory-v2'),
+    ('grok', 'plugins', '/.grok/installed-plugins'),
+    ('grok', 'worktrees', '/.grok/worktrees.db')
 )
 SELECT
   targets.tool,

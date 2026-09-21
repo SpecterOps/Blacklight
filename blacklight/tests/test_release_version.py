@@ -14,7 +14,7 @@ class ReleaseVersionTests(unittest.TestCase):
         cls.repo_root = Path(__file__).resolve().parents[2]
 
     def test_python_scout_and_release_metadata_versions_match(self) -> None:
-        expected = "0.2.0"
+        expected = "0.2.1"
         project = tomllib.loads((self.repo_root / "pyproject.toml").read_text(encoding="utf-8"))
         native = (self.repo_root / "blacklight-scout" / "native" / "ai_path_scout_windows.c").read_text(encoding="utf-8")
         managed = (self.repo_root / "blacklight-scout" / "managed" / "Program.cs").read_text(encoding="utf-8")
