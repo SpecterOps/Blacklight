@@ -32,7 +32,7 @@ static int g_auto_select_count = 0;
 #ifndef BL_MAX_OPERATOR_TARGETS
 #define BL_MAX_OPERATOR_TARGETS 256
 #endif
-#define BL_SCOUT_VERSION "0.2.0"
+#define BL_SCOUT_VERSION "0.2.1"
 #define BL_SESSION_SCAN_LIMIT 10000
 #define BL_SESSION_SCAN_MAX_DEPTH 32
 #define BL_SESSION_TOOL_COUNT 5

@@ -1,6 +1,6 @@
 {
   "name": "ai_path_scout",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "output_contract_version": "v1",
   "category": "collection",
   "description": "No-argument bounded filesystem triage for Windows, macOS, and Linux Scout artifacts, with secret-safe Windows endpoint assessment.",
