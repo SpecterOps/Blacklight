@@ -4,7 +4,7 @@
 
 # Blacklight
 
-Blacklight has two separate phases: **Scout** performs endpoint triage for Codex, Claude Code, Cursor, Antigravity CLI, and Grok; **Session Analysis** parses selected Codex, Claude Code, Cursor, and Antigravity CLI downloads. Grok support is reconnaissance-only and does not parse file contents.
+Blacklight has two separate phases: **Scout** performs endpoint triage for Codex, Claude Code, Cursor, Antigravity CLI, and Grok; **Session Analysis** parses selected Codex, Claude Code, Cursor, and Antigravity CLI downloads.
 
 ## Workflow
 
@@ -25,7 +25,7 @@ Blacklight has two separate phases: **Scout** performs endpoint triage for Codex
 
 ## Phase 1: Scout the endpoint
 
-Scout performs bounded metadata and filesystem triage. It identifies configuration, rules, authentication metadata, and candidate session paths, but does not read session bodies or print credential/configuration values. Grok reconnaissance covers actionable paths under `.grok`, including auth, config, session state, memory, plugins, skills, logs, and worktree state.
+Scout performs bounded metadata and filesystem triage. It identifies configuration, rules, authentication metadata, and candidate session paths, but does not read session bodies or print credential/configuration values. 
 
 ### Build Scout
 
