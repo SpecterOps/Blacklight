@@ -415,6 +415,11 @@ namespace Blacklight.Scout.Managed
         private static void InspectKnownArtifact(Result result)
         {
             if (!EqualsCi(result.Type, "file")) return;
+            if (EqualsCi(result.Tool, "grok"))
+            {
+                AddSafeSignal(result, "inspection=deferred");
+                return;
+            }
             if (IsSessionInspectionFamily(result.Family)) return;
             var extension = Path.GetExtension(result.Path);
             if (!(EqualsCi(extension, ".json") || EqualsCi(extension, ".jsonl") || EqualsCi(extension, ".toml") ||
@@ -905,7 +910,8 @@ namespace Blacklight.Scout.Managed
             var extension = Path.GetExtension(result.Path);
             var inspectable = EqualsCi(extension, ".json") || EqualsCi(extension, ".jsonl") || EqualsCi(extension, ".toml") ||
                 EqualsCi(extension, ".rules") || EqualsCi(extension, ".txt");
-            return result.Type == "file" && inspectable && !IsInspectionUnavailable(result);
+            return result.Type == "file" && inspectable && !IsInspectionUnavailable(result) &&
+                !result.SafeSignals.Contains("inspection=deferred");
         }
 
         private static void PrintAssessmentCategory(List<Result> rows, int category, string title)

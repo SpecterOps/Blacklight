@@ -928,6 +928,10 @@ static void inspect_known_artifact(bl_operator_target_t *target) {
         "sandbox_mode", "approval_policy", "permissions"
     };
     if (!target || !target_is_file(target)) return;
+    if (target_tool_is(target, "grok")) {
+        append_safe_signal(target, "inspection", "deferred");
+        return;
+    }
     if (family_is_session(target->family)) return;
     if (!path_has_inspectable_extension(target->path)) return;
     if (target->file_attributes & FILE_ATTRIBUTE_REPARSE_POINT) {
@@ -1040,7 +1044,7 @@ static int target_metadata_field_count(const bl_operator_target_t *target) {
 
 static int target_metadata_parsed(const bl_operator_target_t *target) {
     return target && target_is_file(target) && path_has_inspectable_extension(target->path) &&
-        !target_inspection_unavailable(target);
+        !target_inspection_unavailable(target) && strstr(target->safe_signals, "inspection=deferred") == NULL;
 }
 
 static int compact_category(const bl_operator_target_t *target) {

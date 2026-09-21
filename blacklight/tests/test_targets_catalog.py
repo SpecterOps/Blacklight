@@ -47,6 +47,12 @@ class TargetCatalogAlignmentTests(unittest.TestCase):
         }
         self.assertEqual(actual, expected)
         self.assertNotIn("grok", (self.repo_root / "blacklight" / "session_input.py").read_text(encoding="utf-8").lower())
+        native_windows = (self.repo_root / "blacklight-scout" / "native" / "ai_path_scout_windows.c").read_text(encoding="utf-8")
+        managed_windows = (self.repo_root / "blacklight-scout" / "managed" / "Program.cs").read_text(encoding="utf-8")
+        self.assertIn('target_tool_is(target, "grok")', native_windows)
+        self.assertIn('EqualsCi(result.Tool, "grok")', managed_windows)
+        self.assertIn("inspection=deferred", native_windows)
+        self.assertIn("inspection=deferred", managed_windows)
 
     def test_windows_catalog_covers_core_tool_families(self) -> None:
         windows = self._catalog_tuples("windows")

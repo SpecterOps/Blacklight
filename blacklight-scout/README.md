@@ -58,7 +58,7 @@ The macOS dylib is universal: it supports Apple Silicon natively and x86_64 thro
 
 Scout reports only recognized paths and count-only metadata. For every detected tool it can show compact Config, Rules, Auth, and Sessions summaries, followed by paths for nonempty categories.
 
-Grok support is reconnaissance-only. Scout can rank `updates.jsonl` by filesystem metadata and reports the exact `session_search.sqlite` path, but neither Scout nor the Python Session Analysis phase parses their contents.
+Grok support is reconnaissance-only. Scout can rank `updates.jsonl` by filesystem metadata and reports the exact `session_search.sqlite` path. All Scout tiers defer Grok content inspection, and Python Session Analysis does not parse Grok files.
 
 Session results are artifact counts—not conversation counts. The Windows executable tier lists up to three recognized session files by newest modification time and by largest size. Use those results to decide what complete files to collect, then analyze the copies offline:
 
