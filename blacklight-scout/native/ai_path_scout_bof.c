@@ -28,6 +28,7 @@
 #define BOF_DYNAMIC_ROOT_LIMIT (BOF_DYNAMIC_DISCOVERY_LIMIT / 4)
 #define BOF_DYNAMIC_DISCOVERY_MAX_DEPTH 6
 #define BOF_CHILD_ENTRY_SCAN_LIMIT 10000
+#define BOF_CODEX_SQLITE_FAMILY_COUNT 5
 
 DECLSPEC_IMPORT DWORD WINAPI KERNEL32$ExpandEnvironmentStringsW(LPCWSTR, wchar_t *, DWORD);
 DECLSPEC_IMPORT DWORD WINAPI KERNEL32$GetFileAttributesW(LPCWSTR);
@@ -73,6 +74,24 @@ static int g_dynamic_root_entries_scanned = 0;
 static int g_dynamic_scan_partial = 0;
 static int g_child_entries_scanned = 0;
 static int g_child_scan_partial = 0;
+
+typedef struct {
+    int count;
+    int has_newest;
+    wchar_t newest_suffix[BL_MAX_PATH_LEN];
+    wchar_t newest_path[BL_MAX_PATH_LEN];
+    long long newest_size;
+    FILETIME newest_write_time;
+} bof_codex_sqlite_family_t;
+
+static const char *g_codex_sqlite_family_names[BOF_CODEX_SQLITE_FAMILY_COUNT] = {
+    "logs", "thread_history", "state", "memories", "goals"
+};
+static bof_codex_sqlite_family_t g_codex_sqlite_families[BOF_CODEX_SQLITE_FAMILY_COUNT];
+static int g_codex_sqlite_check_requested = 0;
+static int g_codex_sqlite_root_available = 0;
+static int g_codex_sqlite_root_missing = 0;
+static int g_codex_sqlite_scan_partial = 0;
 
 static void inline_memset(void *dest, int value, size_t count) {
     unsigned char *d = (unsigned char *)dest;
@@ -783,9 +802,79 @@ static void print_bof_low_priority(void) {
     BeaconPrintf(CALLBACK_OUTPUT, "[i]\n");
 }
 
+static void bof_print_human_size(long long size_bytes) {
+    long long unit;
+    long long whole;
+    long long remainder;
+    long long tenths;
+    const char *label;
+    if (size_bytes < 1024) {
+        BeaconPrintf(CALLBACK_OUTPUT, "%lld B", size_bytes);
+        return;
+    }
+    if (size_bytes < 1024LL * 1024LL) {
+        unit = 1024;
+        label = "KB";
+    } else {
+        unit = 1024LL * 1024LL;
+        label = "MB";
+    }
+    whole = size_bytes / unit;
+    remainder = size_bytes % unit;
+    tenths = (remainder * 10 + unit / 2) / unit;
+    if (tenths == 10) {
+        whole++;
+        tenths = 0;
+    }
+    BeaconPrintf(CALLBACK_OUTPUT, "%lld.%lld %s", whole, tenths, label);
+}
+
+static void print_bof_codex_sqlite_summary(void) {
+    int i;
+    if (!g_codex_sqlite_check_requested) return;
+    BeaconPrintf(CALLBACK_OUTPUT, "[i] CODEX SQLITE DATABASES\n");
+    for (i = 0; i < BOF_CODEX_SQLITE_FAMILY_COUNT; i++) {
+        const bof_codex_sqlite_family_t *family = &g_codex_sqlite_families[i];
+        SYSTEMTIME utc;
+        if (g_codex_sqlite_root_missing) {
+            BeaconPrintf(CALLBACK_OUTPUT, "    %s: absent (0 versions)\n", g_codex_sqlite_family_names[i]);
+        } else if (!g_codex_sqlite_root_available) {
+            BeaconPrintf(CALLBACK_OUTPUT, "    %s: unknown (Codex root unavailable)\n", g_codex_sqlite_family_names[i]);
+        } else if (g_codex_sqlite_scan_partial) {
+            BeaconPrintf(CALLBACK_OUTPUT, "    %s: partial (%d version%s observed)", g_codex_sqlite_family_names[i],
+                family->count, family->count == 1 ? "" : "s");
+            if (family->has_newest) {
+                BeaconPrintf(CALLBACK_OUTPUT, " | newest observed ");
+                bof_print_human_size(family->newest_size);
+                if (KERNEL32$FileTimeToSystemTime(&family->newest_write_time, &utc))
+                    BeaconPrintf(CALLBACK_OUTPUT, " | modified %04d-%02d-%02dT%02d:%02d:%02dZ\n",
+                        utc.wYear, utc.wMonth, utc.wDay, utc.wHour, utc.wMinute, utc.wSecond);
+                else
+                    BeaconPrintf(CALLBACK_OUTPUT, " | modified unavailable\n");
+            } else {
+                BeaconPrintf(CALLBACK_OUTPUT, "\n");
+            }
+        } else if (family->count == 0) {
+            BeaconPrintf(CALLBACK_OUTPUT, "    %s: absent (0 versions)\n", g_codex_sqlite_family_names[i]);
+        } else {
+            BeaconPrintf(CALLBACK_OUTPUT, "    %s: present (%d version%s) | newest observed ",
+                g_codex_sqlite_family_names[i], family->count, family->count == 1 ? "" : "s");
+            bof_print_human_size(family->newest_size);
+            if (KERNEL32$FileTimeToSystemTime(&family->newest_write_time, &utc))
+                BeaconPrintf(CALLBACK_OUTPUT, " | modified %04d-%02d-%02dT%02d:%02d:%02dZ\n",
+                    utc.wYear, utc.wMonth, utc.wDay, utc.wHour, utc.wMinute, utc.wSecond);
+            else
+                BeaconPrintf(CALLBACK_OUTPUT, " | modified unavailable\n");
+        }
+        if (family->has_newest) BeaconPrintf(CALLBACK_OUTPUT, "        %S\n", family->newest_path);
+    }
+    BeaconPrintf(CALLBACK_OUTPUT, "[i]\n");
+}
+
 static void print_bof_human_triage_summary(const bl_scan_results_t *results) {
     int i, tools = 0, auth = 0, sessions = 0, session_artifacts = 0;
-    BeaconPrintf(CALLBACK_OUTPUT, "[i] Blacklight endpoint assessment\n[i]\n[i] ASSESSMENT SUMMARY\n");
+    BeaconPrintf(CALLBACK_OUTPUT, "[i] Blacklight endpoint assessment\n[i]\n");
+    BeaconPrintf(CALLBACK_OUTPUT, "[i] ASSESSMENT SUMMARY\n");
     for (i = 0; i < g_bof_triage_target_count; i++) {
         int j, seen = 0;
         if (target_family_is(&g_bof_triage_targets[i], "auth") && target_is_file(&g_bof_triage_targets[i])) auth++;
@@ -799,6 +888,7 @@ static void print_bof_human_triage_summary(const bl_scan_results_t *results) {
     for (i = 0; i < BOF_SESSION_TOOL_COUNT; i++) session_artifacts += g_session_artifact_counts[i];
     if (sessions || g_session_scan_partial) BeaconPrintf(CALLBACK_OUTPUT, "[i]   Session artifacts:    %d%s\n", session_artifacts, g_session_scan_partial ? " (partial scan)" : "");
     BeaconPrintf(CALLBACK_OUTPUT, "%s   Discovery status:     %s\n[i]\n", (g_dynamic_scan_partial || g_bof_triage_target_overflow || g_session_scan_partial) ? "[!]" : "[i]", (g_dynamic_scan_partial || g_bof_triage_target_overflow || g_session_scan_partial) ? "PARTIAL" : "COMPLETE");
+    print_bof_codex_sqlite_summary();
     print_bof_collection_first();
     print_bof_review_next();
     print_bof_top_session_files();
@@ -989,6 +1079,171 @@ static void bof_scan_dynamic_tree(
     KERNEL32$FindClose(find_handle);
 }
 
+static int bof_codex_sqlite_family_for_filename(const wchar_t *name, int *family_index, wchar_t *suffix, size_t suffix_capacity) {
+    size_t name_length;
+    size_t suffix_start;
+    size_t suffix_length;
+    size_t i;
+    int family;
+    if (!name || !family_index || !suffix || suffix_capacity == 0 || !wide_ends_with_ascii_ci(name, ".sqlite")) return 0;
+    name_length = inline_wcslen(name);
+    suffix_start = name_length - 7;
+    for (family = 0; family < BOF_CODEX_SQLITE_FAMILY_COUNT; family++) {
+        size_t prefix_length = c_string_len(g_codex_sqlite_family_names[family]);
+        if (suffix_start <= prefix_length + 1 || name[prefix_length] != L'_') continue;
+        for (i = 0; i < prefix_length; i++) {
+            if (wide_lower(name[i]) != (wchar_t)ascii_lower((unsigned char)g_codex_sqlite_family_names[family][i])) break;
+        }
+        if (i != prefix_length) continue;
+        suffix_length = suffix_start - prefix_length - 1;
+        if (suffix_length == 0 || suffix_length >= suffix_capacity) continue;
+        for (i = 0; i < suffix_length; i++) {
+            wchar_t digit = name[prefix_length + 1 + i];
+            if (digit < L'0' || digit > L'9') break;
+            suffix[i] = digit;
+        }
+        if (i != suffix_length) continue;
+        suffix[suffix_length] = L'\0';
+        *family_index = family;
+        return 1;
+    }
+    return 0;
+}
+
+static int bof_compare_numeric_suffix(const wchar_t *left, const wchar_t *right) {
+    size_t left_start = 0;
+    size_t right_start = 0;
+    size_t left_length;
+    size_t right_length;
+    size_t i;
+    while (left[left_start] == L'0' && left[left_start + 1] != L'\0') left_start++;
+    while (right[right_start] == L'0' && right[right_start + 1] != L'\0') right_start++;
+    left_length = inline_wcslen(left + left_start);
+    right_length = inline_wcslen(right + right_start);
+    if (left_length != right_length) return left_length > right_length ? 1 : -1;
+    for (i = 0; i < left_length; i++) {
+        if (left[left_start + i] != right[right_start + i]) return left[left_start + i] > right[right_start + i] ? 1 : -1;
+    }
+    return 0;
+}
+
+static const wchar_t *bof_codex_path_filename(const wchar_t *path) {
+    const wchar_t *cursor;
+    const wchar_t *filename = path;
+    if (!path) return L"";
+    for (cursor = path; *cursor; cursor++) if (*cursor == L'\\' || *cursor == L'/') filename = cursor + 1;
+    return filename;
+}
+
+static int bof_codex_sqlite_candidate_newer(
+    const WIN32_FIND_DATAW *find_data,
+    const wchar_t *path,
+    const wchar_t *suffix,
+    const bof_codex_sqlite_family_t *family
+) {
+    int time_comparison;
+    int suffix_comparison;
+    if (find_data->ftLastWriteTime.dwHighDateTime != family->newest_write_time.dwHighDateTime)
+        time_comparison = find_data->ftLastWriteTime.dwHighDateTime > family->newest_write_time.dwHighDateTime ? 1 : -1;
+    else if (find_data->ftLastWriteTime.dwLowDateTime != family->newest_write_time.dwLowDateTime)
+        time_comparison = find_data->ftLastWriteTime.dwLowDateTime > family->newest_write_time.dwLowDateTime ? 1 : -1;
+    else time_comparison = 0;
+    if (time_comparison != 0) return time_comparison > 0;
+    suffix_comparison = bof_compare_numeric_suffix(suffix, family->newest_suffix);
+    if (suffix_comparison != 0) return suffix_comparison > 0;
+    return wide_path_compare_ci(bof_codex_path_filename(path), bof_codex_path_filename(family->newest_path)) > 0;
+}
+
+static void bof_scan_codex_sqlite_files(const wchar_t *profile) {
+    wchar_t root[BL_MAX_PATH_LEN];
+    wchar_t search[BL_MAX_PATH_LEN];
+    wchar_t path[BL_MAX_PATH_LEN];
+    wchar_t suffix[BL_MAX_PATH_LEN];
+    WIN32_FIND_DATAW find_data;
+    HANDLE find_handle;
+    DWORD attributes;
+    DWORD error;
+    int family_index;
+
+    g_codex_sqlite_check_requested = 1;
+    inline_memset(root, 0, sizeof(root));
+    if (!build_path(profile, L"\\.codex", root, BL_MAX_PATH_LEN)) {
+        g_codex_sqlite_scan_partial = 1;
+        g_dynamic_scan_partial = 1;
+        return;
+    }
+    attributes = KERNEL32$GetFileAttributesW(root);
+    if (attributes == INVALID_FILE_ATTRIBUTES) {
+        error = KERNEL32$GetLastError();
+        if (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND) {
+            g_codex_sqlite_root_missing = 1;
+            return;
+        }
+        g_codex_sqlite_scan_partial = 1;
+        g_dynamic_scan_partial = 1;
+        return;
+    }
+    if ((attributes & FILE_ATTRIBUTE_DIRECTORY) == 0 || (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
+        g_codex_sqlite_scan_partial = 1;
+        g_dynamic_scan_partial = 1;
+        return;
+    }
+    g_codex_sqlite_root_available = 1;
+    inline_memset(search, 0, sizeof(search));
+    if (!build_path(root, L"\\*", search, BL_MAX_PATH_LEN)) {
+        g_codex_sqlite_scan_partial = 1;
+        g_dynamic_scan_partial = 1;
+        return;
+    }
+    inline_memset(&find_data, 0, sizeof(find_data));
+    find_handle = KERNEL32$FindFirstFileW(search, &find_data);
+    if (find_handle == INVALID_HANDLE_VALUE) {
+        if (KERNEL32$GetLastError() != ERROR_FILE_NOT_FOUND) {
+            g_codex_sqlite_scan_partial = 1;
+            g_dynamic_scan_partial = 1;
+        }
+        return;
+    }
+    do {
+        if (is_dot_directory(find_data.cFileName)) continue;
+        if (g_dynamic_entries_scanned >= BOF_DYNAMIC_DISCOVERY_LIMIT ||
+            g_dynamic_root_entries_scanned >= BOF_DYNAMIC_ROOT_LIMIT) {
+            g_codex_sqlite_scan_partial = 1;
+            g_dynamic_scan_partial = 1;
+            break;
+        }
+        g_dynamic_entries_scanned++;
+        g_dynamic_root_entries_scanned++;
+        if ((find_data.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) != 0) continue;
+        if (!bof_codex_sqlite_family_for_filename(find_data.cFileName, &family_index, suffix, BL_MAX_PATH_LEN)) continue;
+        inline_memset(path, 0, sizeof(path));
+        if (!build_path(root, L"\\", path, BL_MAX_PATH_LEN) ||
+            !append_wide_in_place(path, find_data.cFileName, BL_MAX_PATH_LEN)) {
+            g_codex_sqlite_scan_partial = 1;
+            g_dynamic_scan_partial = 1;
+            continue;
+        }
+        {
+            bof_codex_sqlite_family_t *family = &g_codex_sqlite_families[family_index];
+            long long size_bytes = ((long long)find_data.nFileSizeHigh << 32) | find_data.nFileSizeLow;
+            family->count++;
+            if (!family->has_newest || bof_codex_sqlite_candidate_newer(&find_data, path, suffix, family)) {
+                family->has_newest = 1;
+                family->newest_size = size_bytes;
+                family->newest_write_time = find_data.ftLastWriteTime;
+                copy_wide_path(family->newest_suffix, suffix, BL_MAX_PATH_LEN);
+                copy_wide_path(family->newest_path, path, BL_MAX_PATH_LEN);
+            }
+        }
+    } while (KERNEL32$FindNextFileW(find_handle, &find_data));
+    error = KERNEL32$GetLastError();
+    if (error != ERROR_NO_MORE_FILES && !g_codex_sqlite_scan_partial) {
+        g_codex_sqlite_scan_partial = 1;
+        g_dynamic_scan_partial = 1;
+    }
+    KERNEL32$FindClose(find_handle);
+}
+
 static void bof_scan_dynamic_targets(bl_scan_results_t *results, const bl_scan_filters_t *filters) {
     wchar_t profile[BL_MAX_PATH_LEN];
     wchar_t root[BL_MAX_PATH_LEN];
@@ -999,28 +1254,40 @@ static void bof_scan_dynamic_targets(bl_scan_results_t *results, const bl_scan_f
     DWORD needed;
     inline_memset(profile, 0, sizeof(profile));
     needed = KERNEL32$ExpandEnvironmentStringsW(L"%USERPROFILE%", profile, BL_MAX_PATH_LEN);
-    if (needed == 0 || needed > BL_MAX_PATH_LEN) return;
+    if (needed == 0 || needed > BL_MAX_PATH_LEN || wide_contains_ascii_n_ci(profile, "%USERPROFILE%", 13)) {
+        if (bl_target_allowed("codex", filters)) {
+            g_codex_sqlite_check_requested = 1;
+            g_codex_sqlite_scan_partial = 1;
+            g_dynamic_scan_partial = 1;
+        }
+        return;
+    }
 
-    inline_memset(root, 0, sizeof(root));
-    g_dynamic_root_entries_scanned = 0;
-    if (build_path(profile, L"\\.codex\\rules", root, BL_MAX_PATH_LEN) &&
-        build_path(root, L"\\*.rules", pattern, BL_MAX_PATH_LEN)) {
-        inline_memset(&find_data, 0, sizeof(find_data));
-        find_handle = KERNEL32$FindFirstFileW(pattern, &find_data);
-        if (find_handle != INVALID_HANDLE_VALUE) {
-            do {
-                if (g_dynamic_entries_scanned >= BOF_DYNAMIC_DISCOVERY_LIMIT ||
-                    g_dynamic_root_entries_scanned >= BOF_DYNAMIC_ROOT_LIMIT) { g_dynamic_scan_partial = 1; break; }
-                g_dynamic_entries_scanned++;
-                g_dynamic_root_entries_scanned++;
-                if ((find_data.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) != 0) continue;
-                inline_memset(path, 0, sizeof(path));
-                if (build_path(root, L"\\", path, BL_MAX_PATH_LEN) &&
-                    append_wide_in_place(path, find_data.cFileName, BL_MAX_PATH_LEN)) {
-                    bof_report_dynamic_file("codex", "rules", path, results, filters);
-                }
-            } while (KERNEL32$FindNextFileW(find_handle, &find_data));
-            KERNEL32$FindClose(find_handle);
+    if (bl_target_allowed("codex", filters)) {
+        inline_memset(root, 0, sizeof(root));
+        g_dynamic_root_entries_scanned = 0;
+        bof_scan_codex_sqlite_files(profile);
+        inline_memset(root, 0, sizeof(root));
+        g_dynamic_root_entries_scanned = 0;
+        if (build_path(profile, L"\\.codex\\rules", root, BL_MAX_PATH_LEN) &&
+            build_path(root, L"\\*.rules", pattern, BL_MAX_PATH_LEN)) {
+            inline_memset(&find_data, 0, sizeof(find_data));
+            find_handle = KERNEL32$FindFirstFileW(pattern, &find_data);
+            if (find_handle != INVALID_HANDLE_VALUE) {
+                do {
+                    if (g_dynamic_entries_scanned >= BOF_DYNAMIC_DISCOVERY_LIMIT ||
+                        g_dynamic_root_entries_scanned >= BOF_DYNAMIC_ROOT_LIMIT) { g_dynamic_scan_partial = 1; break; }
+                    g_dynamic_entries_scanned++;
+                    g_dynamic_root_entries_scanned++;
+                    if ((find_data.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) != 0) continue;
+                    inline_memset(path, 0, sizeof(path));
+                    if (build_path(root, L"\\", path, BL_MAX_PATH_LEN) &&
+                        append_wide_in_place(path, find_data.cFileName, BL_MAX_PATH_LEN)) {
+                        bof_report_dynamic_file("codex", "rules", path, results, filters);
+                    }
+                } while (KERNEL32$FindNextFileW(find_handle, &find_data));
+                KERNEL32$FindClose(find_handle);
+            }
         }
     }
     inline_memset(root, 0, sizeof(root));
@@ -1047,6 +1314,11 @@ void go(char *args, unsigned long alen) {
     inline_memset(&filters, 0, sizeof(filters));
     g_bof_triage_target_count = 0;
     g_bof_triage_target_overflow = 0;
+    inline_memset(g_codex_sqlite_families, 0, sizeof(g_codex_sqlite_families));
+    g_codex_sqlite_check_requested = 0;
+    g_codex_sqlite_root_available = 0;
+    g_codex_sqlite_root_missing = 0;
+    g_codex_sqlite_scan_partial = 0;
 
     filters.max_depth = 1;
     filters.triage = 1;

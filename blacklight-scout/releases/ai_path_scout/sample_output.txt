@@ -10,6 +10,17 @@
 [i]   Recent activity:      CODEX, CLAUDE CODE, CURSOR
 [i]   Discovery status:     COMPLETE
 [i]
+[i] CODEX SQLITE DATABASES
+    logs: present (1 version) | newest observed 104.9 MB | modified 2026-07-15T14:30:00Z
+        C:\Users\operator\.codex\logs_2.sqlite
+    thread_history: present (1 version) | newest observed 24.2 MB | modified 2026-07-15T14:29:00Z
+        C:\Users\operator\.codex\thread_history_1.sqlite
+    state: present (1 version) | newest observed 4.0 MB | modified 2026-07-15T14:28:00Z
+        C:\Users\operator\.codex\state_5.sqlite
+    memories: present (1 version) | newest observed 228.0 KB | modified 2026-07-15T14:27:00Z
+        C:\Users\operator\.codex\memories_1.sqlite
+    goals: absent (0 versions)
+
 [i] CODEX
 [+]   1 credential file | 2 suspected credential fields | refresh token indicator present
 [i]   1 rules file | 14 allow rules

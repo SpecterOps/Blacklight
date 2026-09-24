@@ -30,6 +30,8 @@ static int g_auto_select_count = 0;
 #define BL_DYNAMIC_DISCOVERY_LIMIT 5000
 #define BL_DYNAMIC_ROOT_LIMIT (BL_DYNAMIC_DISCOVERY_LIMIT / 4)
 #define BL_DYNAMIC_DISCOVERY_MAX_DEPTH 6
+#define BL_CODEX_SQLITE_FAMILY_COUNT 5
+#define BL_CODEX_SQLITE_SCAN_LIMIT BL_DYNAMIC_ROOT_LIMIT
 #define BL_CHILD_ENTRY_SCAN_LIMIT 10000
 #define BL_PLAN_PREVIEW_COUNT 5
 #define BL_OUTPUT_CAPACITY (64 * 1024)
@@ -115,6 +117,27 @@ static int g_dynamic_scan_partial = 0;
 static int g_operator_target_overflow = 0;
 static int g_child_entries_scanned = 0;
 static int g_child_scan_partial = 0;
+
+typedef struct {
+    const char *family;
+    int version_count;
+    int partial;
+    int unknown;
+    long long newest_size;
+    long long newest_modified;
+    long newest_modified_nsec;
+    char newest_path[BL_MAX_PATH_LEN];
+    char newest_suffix[BL_MAX_PATH_LEN];
+} bl_codex_sqlite_family_t;
+
+static bl_codex_sqlite_family_t g_codex_sqlite_families[BL_CODEX_SQLITE_FAMILY_COUNT] = {
+    {"logs", 0, 0, 0, 0, 0, 0, {0}, {0}},
+    {"thread_history", 0, 0, 0, 0, 0, 0, {0}, {0}},
+    {"state", 0, 0, 0, 0, 0, 0, {0}, {0}},
+    {"memories", 0, 0, 0, 0, 0, 0, {0}, {0}},
+    {"goals", 0, 0, 0, 0, 0, 0, {0}, {0}}
+};
+static int g_codex_sqlite_scan_partial = 0;
 
 static void inline_memset(void *dest, int value, size_t count) {
     unsigned char *d = (unsigned char *)dest;
@@ -899,6 +922,229 @@ static void print_low_priority(void) {
     printf("[i]\n");
 }
 
+static int codex_sqlite_filename_match(
+    const char *name,
+    int *family_index,
+    const char **suffix,
+    size_t *suffix_length
+) {
+    int i;
+    if (!name || !family_index || !suffix || !suffix_length) return 0;
+    for (i = 0; i < BL_CODEX_SQLITE_FAMILY_COUNT; i++) {
+        size_t family_length = inline_strlen(g_codex_sqlite_families[i].family);
+        const char *digits;
+        const char *cursor;
+        if (strncmp(name, g_codex_sqlite_families[i].family, family_length) != 0 || name[family_length] != '_') continue;
+        digits = name + family_length + 1;
+        cursor = digits;
+        while (*cursor >= '0' && *cursor <= '9') cursor++;
+        if (cursor == digits || strcmp(cursor, ".sqlite") != 0) continue;
+        *family_index = i;
+        *suffix = digits;
+        *suffix_length = (size_t)(cursor - digits);
+        return 1;
+    }
+    return 0;
+}
+
+static int decimal_suffix_compare(const char *left, size_t left_length, const char *right, size_t right_length) {
+    size_t left_start = 0;
+    size_t right_start = 0;
+    size_t normalized_left;
+    size_t normalized_right;
+    int cmp;
+    while (left_start < left_length && left[left_start] == '0') left_start++;
+    while (right_start < right_length && right[right_start] == '0') right_start++;
+    normalized_left = left_length - left_start;
+    normalized_right = right_length - right_start;
+    if (normalized_left != normalized_right) return normalized_left > normalized_right ? 1 : -1;
+    if (normalized_left == 0) return 0;
+    cmp = memcmp(left + left_start, right + right_start, normalized_left);
+    if (cmp != 0) return cmp > 0 ? 1 : -1;
+    return 0;
+}
+
+static int codex_sqlite_candidate_is_newest(
+    const bl_codex_sqlite_family_t *family,
+    const char *name,
+    const char *suffix,
+    size_t suffix_length,
+    long long modified_time,
+    long modified_nsec
+) {
+    const char *old_name;
+    size_t old_suffix_length;
+    int suffix_order;
+    if (!family->newest_path[0]) return 1;
+    if (modified_time != family->newest_modified) return modified_time > family->newest_modified;
+    if (modified_nsec != family->newest_modified_nsec) return modified_nsec > family->newest_modified_nsec;
+    old_suffix_length = inline_strlen(family->newest_suffix);
+    suffix_order = decimal_suffix_compare(suffix, suffix_length, family->newest_suffix, old_suffix_length);
+    if (suffix_order != 0) return suffix_order > 0;
+    old_name = strrchr(family->newest_path, '/');
+    old_name = old_name ? old_name + 1 : family->newest_path;
+    return strcmp(name, old_name) > 0;
+}
+
+static void mark_codex_sqlite_root_unavailable(void) {
+    int i;
+    g_codex_sqlite_scan_partial = 1;
+    for (i = 0; i < BL_CODEX_SQLITE_FAMILY_COUNT; i++) {
+        g_codex_sqlite_families[i].unknown = 1;
+    }
+}
+
+static void scan_codex_sqlite_existence(void) {
+    const char *home = getenv("HOME");
+    char root[BL_MAX_PATH_LEN] = {0};
+    char path[BL_MAX_PATH_LEN];
+    struct stat root_info;
+    DIR *dir;
+    struct dirent *entry;
+    int scanned = 0;
+    int root_partial = 0;
+    int i;
+
+    g_codex_sqlite_scan_partial = 0;
+    for (i = 0; i < BL_CODEX_SQLITE_FAMILY_COUNT; i++) {
+        g_codex_sqlite_families[i].version_count = 0;
+        g_codex_sqlite_families[i].partial = 0;
+        g_codex_sqlite_families[i].unknown = 0;
+        g_codex_sqlite_families[i].newest_size = 0;
+        g_codex_sqlite_families[i].newest_modified = 0;
+        g_codex_sqlite_families[i].newest_modified_nsec = 0;
+        g_codex_sqlite_families[i].newest_path[0] = '\0';
+        g_codex_sqlite_families[i].newest_suffix[0] = '\0';
+    }
+
+    if (!home || !*home || !append_text(root, sizeof(root), home) || !append_text(root, sizeof(root), "/.codex")) {
+        mark_codex_sqlite_root_unavailable();
+        return;
+    }
+    if (lstat(root, &root_info) != 0) {
+        if (errno == ENOENT) return;
+        mark_codex_sqlite_root_unavailable();
+        return;
+    }
+    if (S_ISLNK(root_info.st_mode) || !S_ISDIR(root_info.st_mode)) {
+        mark_codex_sqlite_root_unavailable();
+        return;
+    }
+    dir = opendir(root);
+    if (!dir) {
+        mark_codex_sqlite_root_unavailable();
+        return;
+    }
+    for (;;) {
+        int family_index;
+        const char *suffix;
+        size_t suffix_length;
+        struct stat info;
+        long modified_nsec;
+        size_t root_length;
+        bl_codex_sqlite_family_t *family;
+
+        errno = 0;
+        entry = readdir(dir);
+        if (!entry) {
+            if (errno != 0) root_partial = 1;
+            break;
+        }
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+        if (scanned >= BL_CODEX_SQLITE_SCAN_LIMIT) {
+            root_partial = 1;
+            break;
+        }
+        scanned++;
+        if (!codex_sqlite_filename_match(entry->d_name, &family_index, &suffix, &suffix_length)) continue;
+        family = &g_codex_sqlite_families[family_index];
+        root_length = inline_strlen(root);
+        if (root_length + inline_strlen(entry->d_name) + 2 >= sizeof(path)) {
+            family->partial = 1;
+            g_codex_sqlite_scan_partial = 1;
+            continue;
+        }
+        inline_memset(path, 0, sizeof(path));
+        memcpy(path, root, root_length);
+        if (path[root_length - 1] != '/') {
+            path[root_length] = '/';
+            path[root_length + 1] = '\0';
+        }
+        if (!append_text(path, sizeof(path), entry->d_name)) {
+            family->partial = 1;
+            g_codex_sqlite_scan_partial = 1;
+            continue;
+        }
+        if (lstat(path, &info) != 0) {
+            family->partial = 1;
+            g_codex_sqlite_scan_partial = 1;
+            continue;
+        }
+        if (S_ISLNK(info.st_mode) || !S_ISREG(info.st_mode)) continue;
+#if defined(__APPLE__)
+        modified_nsec = info.st_mtimespec.tv_nsec;
+#else
+        modified_nsec = info.st_mtim.tv_nsec;
+#endif
+        family->version_count++;
+        if (codex_sqlite_candidate_is_newest(family, entry->d_name, suffix, suffix_length, (long long)info.st_mtime, modified_nsec)) {
+            if (suffix_length >= sizeof(family->newest_suffix)) {
+                family->partial = 1;
+                g_codex_sqlite_scan_partial = 1;
+                continue;
+            }
+            family->newest_size = (long long)info.st_size;
+            family->newest_modified = (long long)info.st_mtime;
+            family->newest_modified_nsec = modified_nsec;
+            strncpy(family->newest_path, path, sizeof(family->newest_path) - 1);
+            memcpy(family->newest_suffix, suffix, suffix_length);
+            family->newest_suffix[suffix_length] = '\0';
+        }
+    }
+    closedir(dir);
+    if (root_partial) {
+        g_codex_sqlite_scan_partial = 1;
+        for (i = 0; i < BL_CODEX_SQLITE_FAMILY_COUNT; i++) g_codex_sqlite_families[i].partial = 1;
+    }
+}
+
+static void print_codex_sqlite_existence(void) {
+    int i;
+    printf("[i] CODEX SQLITE DATABASES\n");
+    for (i = 0; i < BL_CODEX_SQLITE_FAMILY_COUNT; i++) {
+        const bl_codex_sqlite_family_t *family = &g_codex_sqlite_families[i];
+        if (family->unknown) {
+            printf("    %s: unknown (Codex root unavailable)\n", family->family);
+            continue;
+        }
+        if (family->partial) {
+            printf("    %s: partial (%d version%s observed)", family->family, family->version_count,
+                family->version_count == 1 ? "" : "s");
+        } else if (family->version_count == 0) {
+            printf("    %s: absent (0 versions)\n", family->family);
+            continue;
+        } else {
+            printf("    %s: present (%d version%s)", family->family, family->version_count,
+                family->version_count == 1 ? "" : "s");
+        }
+        if (family->newest_path[0]) {
+            time_t modified = (time_t)family->newest_modified;
+            struct tm utc;
+            char timestamp[32] = {0};
+            char size_text[32];
+            format_size(family->newest_size, size_text, sizeof(size_text));
+            if (gmtime_r(&modified, &utc) && strftime(timestamp, sizeof(timestamp), "%Y-%m-%dT%H:%M:%SZ", &utc)) {
+                printf(" | newest observed %s | modified %s\n        ", size_text, timestamp);
+            } else {
+                printf(" | newest observed %s | modified unavailable\n        ", size_text);
+            }
+            print_escaped_path(family->newest_path);
+        }
+        printf("\n");
+    }
+    printf("[i]\n");
+}
+
 static void print_top_session_files(void) {
     int i;
     int rank = 0;
@@ -941,7 +1187,10 @@ static void print_operator_triage_summary(void) {
     int i, tools = 0, auth = 0, sessions = 0, session_artifacts = 0;
     printf("[i] Blacklight endpoint assessment\n[i]\n");
     if (g_operator_target_count <= 0) {
-        printf("[i] ASSESSMENT SUMMARY\n[i]   Tools detected:       0\n[i]   Discovery status:     COMPLETE\n[i]\n");
+        printf("[i] ASSESSMENT SUMMARY\n[i]   Tools detected:       0\n%s   Discovery status:     %s\n[i]\n",
+            g_codex_sqlite_scan_partial ? "[!]" : "[i]",
+            g_codex_sqlite_scan_partial ? "PARTIAL" : "COMPLETE");
+        print_codex_sqlite_existence();
         return;
     }
     printf("[i] ASSESSMENT SUMMARY\n");
@@ -957,13 +1206,14 @@ static void print_operator_triage_summary(void) {
     if (sessions) printf("[i]   Session locations:    %d\n", sessions);
     for (i = 0; i < BL_SESSION_TOOL_COUNT; i++) session_artifacts += g_session_artifact_counts[i];
     if (sessions || g_session_scan_partial) printf("[i]   Session artifacts:    %d%s\n", session_artifacts, g_session_scan_partial ? " (partial scan)" : "");
-    printf("%s   Discovery status:     %s\n[i]\n", (g_dynamic_scan_partial || g_operator_target_overflow || g_session_scan_partial) ? "[!]" : "[i]", (g_dynamic_scan_partial || g_operator_target_overflow || g_session_scan_partial) ? "PARTIAL" : "COMPLETE");
+    printf("%s   Discovery status:     %s\n[i]\n", (g_dynamic_scan_partial || g_operator_target_overflow || g_session_scan_partial || g_codex_sqlite_scan_partial) ? "[!]" : "[i]", (g_dynamic_scan_partial || g_operator_target_overflow || g_session_scan_partial || g_codex_sqlite_scan_partial) ? "PARTIAL" : "COMPLETE");
     qsort(
         g_operator_targets,
         (size_t)g_operator_target_count,
         sizeof(g_operator_targets[0]),
         operator_target_compare
     );
+    print_codex_sqlite_existence();
     print_collection_first();
     print_review_next();
     print_top_session_files();
@@ -1197,6 +1447,7 @@ static void run_posix_triage(void) {
     g_child_entries_scanned = 0;
     g_child_scan_partial = 0;
 
+    scan_codex_sqlite_existence();
     bl_scan_static_targets(
         BL_STATIC_TARGETS,
         BL_STATIC_TARGETS_COUNT,

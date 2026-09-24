@@ -28,6 +28,7 @@ $unicodeSuffix = ([char]0x00e9) + ([char]0x7528) + ([char]0x6237) + ([char]0x041
 $fixture = Join-Path ([System.IO.Path]::GetTempPath()) ("blacklight-scout-exe-$unicodeSuffix-" + [guid]::NewGuid().ToString("N"))
 $oldProfile = $env:USERPROFILE
 $lockedStream = $null
+$lockedSqliteStream = $null
 try {
     New-Item -ItemType Directory -Force -Path `
         (Join-Path $fixture ".codex\sessions"), `
@@ -91,6 +92,31 @@ not-json
         try { $stream.SetLength($session.Size) } finally { $stream.Dispose() }
         if ($session.Modified) { [System.IO.File]::SetLastWriteTimeUtc($session.Path, [DateTime]::Parse($session.Modified).ToUniversalTime()) }
     }
+    $sqliteFixtures = @(
+        @{ Family = "logs"; Suffix = "2"; Size = 23; Modified = "2026-07-11T00:00:00Z" },
+        @{ Family = "logs"; Suffix = "999999999999999999999999999999"; Size = 73; Modified = "2026-07-11T00:00:00Z" },
+        @{ Family = "thread_history"; Suffix = "9"; Size = 19; Modified = "2026-07-12T00:00:00Z" },
+        @{ Family = "thread_history"; Suffix = "10"; Size = 29; Modified = "2026-07-12T00:00:00Z" },
+        @{ Family = "state"; Suffix = "100"; Size = 100; Modified = "2026-07-13T00:00:00Z" },
+        @{ Family = "state"; Suffix = "2"; Size = 20; Modified = "2026-07-14T00:00:00Z" },
+        @{ Family = "memories"; Suffix = "1"; Size = 31; Modified = "2026-07-15T00:00:00Z" }
+    )
+    foreach ($database in $sqliteFixtures) {
+        $databasePath = Join-Path $fixture (".codex\{0}_{1}.sqlite" -f $database.Family, $database.Suffix)
+        $stream = [System.IO.File]::Open($databasePath, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::ReadWrite)
+        try { $stream.SetLength($database.Size) } finally { $stream.Dispose() }
+        [System.IO.File]::SetLastWriteTimeUtc($databasePath, [DateTime]::Parse($database.Modified).ToUniversalTime())
+    }
+    $lockedSqlitePath = Join-Path $fixture ".codex\logs_999999999999999999999999999999.sqlite"
+    $lockedSqliteStream = [System.IO.File]::Open($lockedSqlitePath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+    foreach ($nearMiss in @("logs.sqlite", "logs_abc.sqlite", "logs_2abc.sqlite", "logs_3.sqlite-wal", "memories_1.sqlite-shm")) {
+        [System.IO.File]::WriteAllText((Join-Path $fixture (".codex\" + $nearMiss)), "SECRET_SQLITE_CONTENT_CANARY")
+    }
+    New-Item -ItemType Directory -Force -Path (Join-Path $fixture ".codex\nested") | Out-Null
+    [System.IO.File]::WriteAllText((Join-Path $fixture ".codex\nested\thread_history_4.sqlite"), "SECRET_SQLITE_CONTENT_CANARY")
+    New-Item -ItemType Directory -Force -Path (Join-Path $fixture ".codex\state_3.sqlite") | Out-Null
+    New-Item -ItemType Junction -Path (Join-Path $fixture ".codex\sqlite-linked") -Target (Join-Path $fixture "not-a-session") | Out-Null
+    [System.IO.File]::WriteAllText((Join-Path $fixture "not-a-session\goals_999.sqlite"), "SECRET_SQLITE_CONTENT_CANARY")
     $linkedSession = Join-Path $fixture "not-a-session\linked.jsonl"
     $linkStream = [System.IO.File]::Open($linkedSession, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::ReadWrite)
     try { $linkStream.SetLength(700) } finally { $linkStream.Dispose() }
@@ -102,8 +128,15 @@ not-json
         $human = & $exe
         if ($LASTEXITCODE -ne 0) { throw "$exe default triage failed" }
         $joined = $human -join "`n"
-        foreach ($required in @("Blacklight endpoint assessment", "ASSESSMENT SUMMARY", "Discovery status:", "[i] CODEX", "[i] CLAUDE CODE", "1 config file | 7 recognized settings, 1 partial", "allow rule", "1 credential file | 1 suspected credential field", "1 credential file | 2 suspected credential fields | refresh token indicator present", "2 session locations", "4 session artifacts", "Session artifacts:    10", "[+] AUTHENTICATION ARTIFACTS", "[i] RULES", "[i] CONFIGURATION", "[i] SESSION LOCATIONS", "1 allow rules | 1 deny rules", "project.rules", ".mcp.json", "Additional candidate artifacts:", "PRIORITIZED SESSION ARTIFACTS (newest first)", "LARGEST SESSION ARTIFACTS", "600 B", "500 B", "modified", "cursor-session.jsonl", "claude-session.jsonl", "partial", ".credentials.json", "projects=1", "trusted=1", "mcp_definitions=1")) {
+        foreach ($required in @("Blacklight endpoint assessment", "[i] CODEX SQLITE DATABASES", "ASSESSMENT SUMMARY", "Discovery status:", "[i] CODEX", "[i] CLAUDE CODE", "1 config file | 7 recognized settings, 1 partial", "allow rule", "1 credential file | 1 suspected credential field", "1 credential file | 2 suspected credential fields | refresh token indicator present", "2 session locations", "4 session artifacts", "Session artifacts:    10", "[+] AUTHENTICATION ARTIFACTS", "[i] RULES", "[i] CONFIGURATION", "[i] SESSION LOCATIONS", "1 allow rules | 1 deny rules", "project.rules", ".mcp.json", "Additional candidate artifacts:", "PRIORITIZED SESSION ARTIFACTS (newest first)", "LARGEST SESSION ARTIFACTS", "600 B", "500 B", "modified", "cursor-session.jsonl", "claude-session.jsonl", "partial", ".credentials.json", "projects=1", "trusted=1", "mcp_definitions=1")) {
             if ($joined -notmatch [regex]::Escape($required)) { throw "$exe missing expected triage text: $required" }
+        }
+        if ($joined -match "Codex SQLite database existence") { throw "$exe retained the old Codex database heading" }
+        $summaryIdx = $joined.IndexOf("[i] ASSESSMENT SUMMARY")
+        $sqliteIdx = $joined.IndexOf("[i] CODEX SQLITE DATABASES")
+        $codexIdx = $joined.IndexOf("[i] CODEX`n")
+        if ($summaryIdx -lt 0 -or $sqliteIdx -lt 0 -or $codexIdx -lt 0 -or $summaryIdx -gt $sqliteIdx -or $sqliteIdx -gt $codexIdx) {
+            throw "$exe did not place the Codex SQLite section after the assessment summary and before tool details"
         }
         foreach ($removedDetailText in @("Tool summary and collection-value score", "Metadata fields:", "collection value:", "Verbose artifacts", "Summary: found=")) {
             if ($joined -match [regex]::Escape($removedDetailText)) { throw "$exe default triage retained removed detail text: $removedDetailText" }
@@ -125,10 +158,30 @@ not-json
         if ($codexFirst -ne 1) { throw "$exe did not rank the newest Codex session ahead of larger older artifacts" }
         if ($joined -match "\([0-9]+ bytes\)") { throw "$exe retained exact byte counts in human output" }
         if ($topSection -match "excluded-fourth\.jsonl" -or $largestSection -match "excluded-fourth\.jsonl") { throw "$exe emitted a fourth-ranked session file" }
-        foreach ($secret in @("SECRET_CANARY_TOKEN", "SECRET_CANARY_ACCESS_TOKEN", "SECRET_CANARY_REFRESH_TOKEN", "secret-canary@example.test", "PRIVATE_ACCOUNT_ID", "SECRET_CANARY_COMMAND", "SECRET_CANARY_CHAT", "SECRET_CANARY_PROVIDER", "SECRET_CANARY_MODEL", "SECRET_CANARY_REASONING", "SECRET_CANARY_SANDBOX", "SECRET_CANARY_APPROVAL", "c:\users\fixture\trusted", "users\fixture")) {
+        foreach ($secret in @("SECRET_CANARY_TOKEN", "SECRET_CANARY_ACCESS_TOKEN", "SECRET_CANARY_REFRESH_TOKEN", "secret-canary@example.test", "PRIVATE_ACCOUNT_ID", "SECRET_CANARY_COMMAND", "SECRET_CANARY_CHAT", "SECRET_CANARY_PROVIDER", "SECRET_CANARY_MODEL", "SECRET_CANARY_REASONING", "SECRET_CANARY_SANDBOX", "SECRET_CANARY_APPROVAL", "SECRET_SQLITE_CONTENT_CANARY", "c:\users\fixture\trusted", "users\fixture")) {
             if ($joined -match [regex]::Escape($secret)) { throw "$exe leaked protected value: $secret" }
         }
         if ($joined -match [regex]::Escape($linkedSession)) { throw "$exe followed a session reparse point" }
+        $logsNewest = Join-Path $fixture ".codex\logs_999999999999999999999999999999.sqlite"
+        $threadHistoryNewest = Join-Path $fixture ".codex\thread_history_10.sqlite"
+        $stateNewest = Join-Path $fixture ".codex\state_2.sqlite"
+        foreach ($expectedPath in @($logsNewest, $threadHistoryNewest, $stateNewest)) {
+            if ($joined -notmatch [regex]::Escape($expectedPath)) { throw "$exe failed newest suffix/mtime selection for $expectedPath" }
+        }
+        if ($joined -notmatch "(?m)^    logs: present \(2 versions\) \| newest observed 73 B \| modified 2026-07-11T00:00:00Z$") { throw "$exe did not report the arbitrary-length numeric suffix and metadata" }
+        if ($joined -notmatch "(?m)^    thread_history: present \(2 versions\) \| newest observed 29 B \| modified 2026-07-12T00:00:00Z$") { throw "$exe did not compare numeric suffixes without lexical ordering" }
+        if ($joined -notmatch "(?m)^    state: present \(2 versions\) \| newest observed 20 B \| modified 2026-07-14T00:00:00Z$") { throw "$exe did not rank newest mtime before suffix number" }
+        if ($joined -notmatch "(?m)^    memories: present \(1 version\) \| newest observed 31 B \| modified 2026-07-15T00:00:00Z$") { throw "$exe did not use singular version grammar or human-readable size" }
+        foreach ($expectedPath in @($logsNewest, $threadHistoryNewest, $stateNewest, (Join-Path $fixture ".codex\memories_1.sqlite"))) {
+            $escapedPath = [regex]::Escape($expectedPath)
+            if ($joined -notmatch "(?m)^        $escapedPath$") { throw "$exe did not put the newest SQLite path on its own indented line: $expectedPath" }
+        }
+        foreach ($nonNewest in @("logs_2.sqlite", "thread_history_9.sqlite", "state_100.sqlite")) {
+            if ($joined -match [regex]::Escape($nonNewest)) { throw "$exe emitted more than the newest metadata path for a database family: $nonNewest" }
+        }
+        foreach ($excluded in @("logs.sqlite", "logs_abc.sqlite", "logs_2abc.sqlite", "logs_3.sqlite-wal", "memories_1.sqlite-shm", "thread_history_4.sqlite", "state_3.sqlite", "goals_999.sqlite")) {
+            if ($joined -match [regex]::Escape($excluded)) { throw "$exe included a nonmatching, nested, or reparse SQLite path: $excluded" }
+        }
         $humanOutputs[[System.IO.Path]::GetFileName($exe)] = $joined
 
         $help = (& $exe --help) -join "`n"
@@ -165,8 +218,11 @@ not-json
             & $exe --include-tool codex --max-depth $depth | Out-Null
             if ($LASTEXITCODE -ne 0) { throw "$exe --max-depth $depth failed" }
         }
-        & $exe --include-tool codex --discovery-cap 10 | Out-Null
+        $capOutput = (& $exe --include-tool codex --discovery-cap 10) -join "`n"
         if ($LASTEXITCODE -ne 0) { throw "$exe --discovery-cap failed" }
+        foreach ($family in @("logs", "thread_history", "state", "memories", "goals")) {
+            if ($capOutput -notmatch "(?m)^    ${family}: partial \([0-9]+ versions observed\)") { throw "$exe did not report $family as partial after discovery cap exhaustion" }
+        }
     }
     if ($humanOutputs[[System.IO.Path]::GetFileName($native)] -ne $humanOutputs[[System.IO.Path]::GetFileName($managed)]) {
         $nativeLines = $humanOutputs[[System.IO.Path]::GetFileName($native)] -split "`n"
@@ -178,6 +234,43 @@ not-json
         }
         $difference = $difference -join "`n"
         throw "Native and managed default human triage output diverged:`n$difference"
+    }
+    $missingRootFixture = Join-Path ([System.IO.Path]::GetTempPath()) ("blacklight-codex-sqlite-missing-" + [guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Force -Path $missingRootFixture | Out-Null
+    try {
+        $env:USERPROFILE = $missingRootFixture
+        foreach ($exe in @($native, $managed)) {
+            $missingOutput = (& $exe) -join "`n"
+            if ($LASTEXITCODE -ne 0) { throw "$exe failed with a missing Codex root" }
+            foreach ($family in @("logs", "thread_history", "state", "memories", "goals")) {
+                if ($missingOutput -notmatch "(?m)^    ${family}: absent \(0 versions\)$") { throw "$exe did not report $family absent when the Codex root is missing" }
+            }
+            $filteredOutput = (& $exe --include-tool claude_code) -join "`n"
+            if ($LASTEXITCODE -ne 0 -or $filteredOutput -match "CODEX SQLITE DATABASES") { throw "$exe emitted Codex database results while Codex was filtered out" }
+        }
+    }
+    finally {
+        $env:USERPROFILE = $fixture
+        if (Test-Path -LiteralPath $missingRootFixture) { Remove-Item -LiteralPath $missingRootFixture -Recurse -Force }
+    }
+    $reparseRootFixture = Join-Path ([System.IO.Path]::GetTempPath()) ("blacklight-codex-sqlite-reparse-" + [guid]::NewGuid().ToString("N"))
+    $reparseTarget = Join-Path $reparseRootFixture "codex-target"
+    New-Item -ItemType Directory -Force -Path $reparseRootFixture, $reparseTarget | Out-Null
+    [System.IO.File]::WriteAllText((Join-Path $reparseTarget "logs_99.sqlite"), "SECRET_SQLITE_CONTENT_CANARY")
+    New-Item -ItemType Junction -Path (Join-Path $reparseRootFixture ".codex") -Target $reparseTarget | Out-Null
+    try {
+        $env:USERPROFILE = $reparseRootFixture
+        foreach ($exe in @($native, $managed)) {
+            $reparseOutput = (& $exe) -join "`n"
+            if ($LASTEXITCODE -ne 0) { throw "$exe failed with a reparse Codex root" }
+            if ($reparseOutput -notmatch "(?m)^    logs: unknown \(Codex root unavailable\)$" -or $reparseOutput -match "logs_99\.sqlite") {
+                throw "$exe followed or misclassified a reparse Codex root"
+            }
+        }
+    }
+    finally {
+        $env:USERPROFILE = $fixture
+        if (Test-Path -LiteralPath $reparseRootFixture) { Remove-Item -LiteralPath $reparseRootFixture -Recurse -Force }
     }
     if (Test-Path -LiteralPath $targetCapNative) {
         $targetCapOutput = (& $targetCapNative) -join "`n"
@@ -280,10 +373,11 @@ not-json
     if ($resultCapOutputs[0] -ne $resultCapOutputs[1]) {
         throw "Native and managed Scout diverged at the shared target cap"
     }
-    Write-Output "Executable triage smoke test passed: parity, repeated managed execution, Unicode paths, strict depth, compact output, dynamic discovery, session diversity, reparse avoidance, and scan caps"
+    Write-Output "Executable triage smoke test passed: parity, five Codex SQLite family summaries, version-flexible suffixes, metadata-only output, root/reparse handling, Unicode paths, dynamic discovery, session diversity, and scan caps"
 }
 finally {
     $env:USERPROFILE = $oldProfile
+    if ($null -ne $lockedSqliteStream) { $lockedSqliteStream.Dispose() }
     if ($null -ne $lockedStream) { $lockedStream.Dispose() }
     if (Test-Path -LiteralPath $fixture) { Remove-Item -LiteralPath $fixture -Recurse -Force }
 }

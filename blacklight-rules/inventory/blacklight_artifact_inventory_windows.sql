@@ -88,6 +88,14 @@ targets(tool, family, relative_path) AS (
     ('grok', 'logs', '\.grok\memtrace'),
     ('grok', 'worktrees', '\.grok\grove'),
     ('grok', 'worktrees', '\.grok\worktrees.db')
+),
+codex_sqlite_targets(family, filename_prefix) AS (
+  VALUES
+    ('logs', 'logs'),
+    ('thread_history', 'thread_history'),
+    ('state', 'state'),
+    ('memories', 'memories'),
+    ('goals', 'goals')
 )
 SELECT
   targets.tool,
@@ -103,4 +111,27 @@ SELECT
 FROM user_homes
 CROSS JOIN targets
 JOIN file ON file.path = user_homes.directory || targets.relative_path
-ORDER BY targets.tool, targets.family, file.path;
+UNION ALL
+SELECT
+  'codex' AS tool,
+  codex_sqlite_targets.family,
+  user_homes.username,
+  file.path,
+  file.type,
+  file.uid,
+  file.gid,
+  file.mode,
+  file.size,
+  datetime(file.mtime, 'unixepoch') AS mtime_utc
+FROM user_homes
+CROSS JOIN codex_sqlite_targets
+JOIN file AS codex_root ON codex_root.path = user_homes.directory || '\.codex'
+  AND codex_root.type = 'directory'
+JOIN file ON file.directory = codex_root.path
+  AND file.type = 'regular'
+  AND lower(file.filename) GLOB lower(codex_sqlite_targets.filename_prefix) || '_[0-9]*.sqlite'
+  AND substr(file.filename, length(codex_sqlite_targets.filename_prefix) + 2,
+      length(file.filename) - length(codex_sqlite_targets.filename_prefix) - 8) != ''
+  AND substr(file.filename, length(codex_sqlite_targets.filename_prefix) + 2,
+      length(file.filename) - length(codex_sqlite_targets.filename_prefix) - 8) NOT GLOB '*[^0-9]*'
+ORDER BY tool, family, path;

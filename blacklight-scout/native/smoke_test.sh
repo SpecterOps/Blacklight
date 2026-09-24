@@ -14,6 +14,7 @@ mkdir -p \
   "$fixture_home/.codex/.sandbox" \
   "$fixture_home/.codex/rules" \
   "$fixture_home/.codex/sessions" \
+  "$fixture_home/.codex/nested" \
   "$fixture_home/.claude/plugins" \
   "$fixture_home/.claude/projects/project with space" \
   "$fixture_home/.cursor/agents" \
@@ -27,6 +28,26 @@ touch \
   "$fixture_home/.codex/config.toml" \
   "$fixture_home/.codex/.sandbox/setup_marker.json" \
   "$fixture_home/.claude/.credentials.json"
+printf '%s' 'BLACKLIGHT_SQLITE_CONTENT_SHOULD_NOT_APPEAR' > "$fixture_home/.codex/logs_2.sqlite"
+truncate -s 22 "$fixture_home/.codex/logs_10.sqlite"
+truncate -s 33 "$fixture_home/.codex/logs_99.sqlite"
+truncate -s 25 "$fixture_home/.codex/thread_history_2.sqlite"
+truncate -s 35 "$fixture_home/.codex/thread_history_7.sqlite"
+long_version_suffix=99999999999999999999999999999999999999999999999999999999999999999999999999999999
+truncate -s 36 "$fixture_home/.codex/thread_history_$long_version_suffix.sqlite"
+truncate -s 45 "$fixture_home/.codex/state_5.sqlite"
+truncate -s 55 "$fixture_home/.codex/memories_1.sqlite"
+touch -t 202607020000 \
+  "$fixture_home/.codex/logs_2.sqlite" \
+  "$fixture_home/.codex/logs_10.sqlite" \
+  "$fixture_home/.codex/thread_history_2.sqlite" \
+  "$fixture_home/.codex/thread_history_7.sqlite" \
+  "$fixture_home/.codex/thread_history_$long_version_suffix.sqlite"
+touch -t 202607010000 "$fixture_home/.codex/logs_99.sqlite"
+touch -t 202607030000 "$fixture_home/.codex/state_5.sqlite" "$fixture_home/.codex/memories_1.sqlite"
+touch "$fixture_home/.codex/logs_100.sqlite-wal" "$fixture_home/.codex/state.sqlite" "$fixture_home/.codex/memories_abc.sqlite"
+touch "$fixture_home/.codex/nested/goals_7.sqlite"
+ln -s "$fixture_home/.codex/config.toml" "$fixture_home/.codex/goals_9.sqlite"
 touch \
   "$fixture_home/.grok/auth.json" \
   "$fixture_home/.grok/config.toml" \
@@ -86,6 +107,97 @@ for grok_path in \
     exit 1
   }
 done
+
+echo "$output" | grep -Fq '[i] CODEX SQLITE DATABASES' || {
+  echo "smoke test failed: Codex SQLite section heading was missing" >&2
+  exit 1
+}
+summary_line="$(echo "$output" | grep -n '^\[i\] ASSESSMENT SUMMARY$' | head -n1 | cut -d: -f1)"
+database_line="$(echo "$output" | grep -n '^\[i\] CODEX SQLITE DATABASES$' | head -n1 | cut -d: -f1)"
+first_collection_line="$(echo "$output" | grep -n '^\[i\] Collect first:' | head -n1 | cut -d: -f1)"
+[ -n "$summary_line" ] && [ -n "$database_line" ] && [ -n "$first_collection_line" ] && \
+  [ "$summary_line" -lt "$database_line" ] && [ "$database_line" -lt "$first_collection_line" ] || {
+  echo "smoke test failed: Codex SQLite section was not between assessment summary and collection sections" >&2
+  exit 1
+}
+echo "$output" | grep -Fq '    logs: present (3 versions) | newest observed 22 B | modified ' || {
+  echo "smoke test failed: logs family did not use mtime then numeric suffix to select the newest version" >&2
+  exit 1
+}
+echo "$output" | grep -Fxq "        $fixture_home/.codex/logs_10.sqlite" || {
+  echo "smoke test failed: logs newest path was not on its own indented line" >&2
+  exit 1
+}
+echo "$output" | grep -Fq '    thread_history: present (3 versions) | newest observed 36 B | modified ' || {
+  echo "smoke test failed: thread_history numeric suffix tie-break did not handle a large version number" >&2
+  exit 1
+}
+echo "$output" | grep -Fxq "        $fixture_home/.codex/thread_history_$long_version_suffix.sqlite" || {
+  echo "smoke test failed: large thread_history version was not selected" >&2
+  exit 1
+}
+echo "$output" | grep -Fq '    state: present (1 version) | newest observed 45 B | modified ' || {
+  echo "smoke test failed: state family metadata was missing" >&2
+  exit 1
+}
+echo "$output" | grep -Fxq "        $fixture_home/.codex/state_5.sqlite" || {
+  echo "smoke test failed: state newest path was missing" >&2
+  exit 1
+}
+echo "$output" | grep -Fq '    memories: present (1 version) | newest observed 55 B | modified ' || {
+  echo "smoke test failed: memories family metadata was missing" >&2
+  exit 1
+}
+echo "$output" | grep -Fxq "        $fixture_home/.codex/memories_1.sqlite" || {
+  echo "smoke test failed: memories newest path was missing" >&2
+  exit 1
+}
+echo "$output" | grep -Fq '    goals: absent (0 versions)' || {
+  echo "smoke test failed: sidecar, nested, or symlink goals candidates were counted" >&2
+  exit 1
+}
+echo "$output" | grep -Eq '\| modified [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z' || {
+  echo "smoke test failed: database modification time was not emitted in UTC" >&2
+  exit 1
+}
+echo "$output" | grep -Fq 'BLACKLIGHT_SQLITE_CONTENT_SHOULD_NOT_APPEAR' && {
+  echo "smoke test failed: database content appeared in metadata-only output" >&2
+  exit 1
+}
+for excluded_db_path in \
+  "$fixture_home/.codex/logs_100.sqlite-wal" \
+  "$fixture_home/.codex/nested/goals_7.sqlite" \
+  "$fixture_home/.codex/goals_9.sqlite"; do
+  echo "$output" | grep -Fq "$excluded_db_path" && {
+    echo "smoke test failed: excluded SQLite candidate appeared in output: $excluded_db_path" >&2
+    exit 1
+  }
+done
+
+missing_root_home="$(mktemp -d)"
+missing_root_output="$(HOME="$missing_root_home" "$SMOKE_BIN")"
+rm -rf "$missing_root_home"
+for family in logs thread_history state memories goals; do
+  echo "$missing_root_output" | grep -Fq "    $family: absent (0 versions)" || {
+    echo "smoke test failed: missing Codex root did not report $family as absent" >&2
+    exit 1
+  }
+done
+
+unavailable_root_home="$(mktemp -d)"
+touch "$unavailable_root_home/.codex"
+unavailable_root_output="$(HOME="$unavailable_root_home" "$SMOKE_BIN")"
+rm -rf "$unavailable_root_home"
+for family in logs thread_history state memories goals; do
+  echo "$unavailable_root_output" | grep -Fq "    $family: unknown (Codex root unavailable)" || {
+    echo "smoke test failed: unavailable Codex root was reported as absent for $family" >&2
+    exit 1
+  }
+done
+echo "$unavailable_root_output" | grep -Fq '[!]   Discovery status:     PARTIAL' || {
+  echo "smoke test failed: unavailable Codex root did not mark overall discovery partial" >&2
+  exit 1
+}
 
 plan_preview_count="$(echo "$output" | grep -Ec "^\[i\]       $fixture_home/.cursor/plans(/|$)")"
 [ "$plan_preview_count" -eq 6 ] || {
@@ -181,6 +293,9 @@ echo "$output" | grep -Fq 'excluded-fourth.jsonl' && {
 
 cap_home="$(mktemp -d)"
 mkdir -p "$cap_home/.codex/sessions"
+for i in $(seq 1 1251); do
+  : > "$cap_home/.codex/unrelated-$i"
+done
 for i in $(seq 1 10001); do
   : > "$cap_home/.codex/sessions/$i.jsonl"
 done
@@ -192,6 +307,10 @@ echo "$cap_output" | grep -q '^\[i\] PRIORITIZED SESSION ARTIFACTS (newest first
 }
 echo "$cap_output" | grep -Fq '[i]   Session artifacts:    10000 (partial scan)' || {
   echo "smoke test failed: capped session volume was not labeled partial" >&2
+  exit 1
+}
+echo "$cap_output" | grep -Fq '    logs: partial (0 versions observed)' || {
+  echo "smoke test failed: capped Codex root scan did not mark the database family partial" >&2
   exit 1
 }
 

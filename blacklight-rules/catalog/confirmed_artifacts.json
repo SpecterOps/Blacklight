@@ -16,12 +16,27 @@
     "blacklight.scout.endpoint_assessment": {
       "kind": "code",
       "path": "blacklight-scout/native/ai_path_scout_windows.c",
-      "note": "Native implementation of the count-only configuration, permission, and authentication assessment; managed parity is validated by the executable smoke tests."
+      "note": "Native Windows implementation of the count-only configuration, permission, authentication, and database existence assessment; managed parity is validated by the executable smoke tests."
+    },
+    "blacklight.scout.endpoint_assessment_posix": {
+      "kind": "code",
+      "path": "blacklight-scout/native/ai_path_scout_posix.c",
+      "note": "Native macOS and Linux existence checks report only database file metadata."
     },
     "blacklight.analyze.run_session_detail": {
       "kind": "code",
       "path": "blacklight/analyze.py",
       "symbol": "run_session_detail"
+    },
+    "blacklight.rules.osquery_inventory_windows": {
+      "kind": "code",
+      "path": "blacklight-rules/inventory/blacklight_artifact_inventory_windows.sql",
+      "note": "Metadata-only Windows endpoint inventory; database contents are not parsed."
+    },
+    "blacklight.rules.osquery_inventory_posix": {
+      "kind": "code",
+      "path": "blacklight-rules/inventory/blacklight_artifact_inventory_posix.sql",
+      "note": "Metadata-only POSIX endpoint inventory; database contents are not parsed."
     }
   },
   "detection_boundaries": {
@@ -143,6 +158,111 @@
         "blacklight.analyze.run_session_detail"
       ],
       "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.logs_sqlite",
+      "tool": "codex",
+      "family": "logs",
+      "relative_path": ".codex/logs_*.sqlite",
+      "path_kind": "glob",
+      "priority": "medium",
+      "platforms": [
+        "windows",
+        "darwin",
+        "linux"
+      ],
+      "confirmed_by": [
+        "blacklight.scout.endpoint_assessment",
+        "blacklight.scout.endpoint_assessment_posix",
+        "blacklight.rules.osquery_inventory_windows",
+        "blacklight.rules.osquery_inventory_posix"
+      ],
+      "assessment_coverage": "recursively_discovered",
+      "note": "Runtime matching requires one or more ASCII digits between logs_ and .sqlite. Reports file metadata and presence only; the database is not opened or parsed."
+    },
+    {
+      "id": "codex.thread_history_sqlite",
+      "tool": "codex",
+      "family": "thread_history",
+      "relative_path": ".codex/thread_history_*.sqlite",
+      "path_kind": "glob",
+      "priority": "medium",
+      "platforms": [
+        "windows",
+        "darwin",
+        "linux"
+      ],
+      "confirmed_by": [
+        "blacklight.scout.endpoint_assessment",
+        "blacklight.scout.endpoint_assessment_posix",
+        "blacklight.rules.osquery_inventory_windows",
+        "blacklight.rules.osquery_inventory_posix"
+      ],
+      "assessment_coverage": "recursively_discovered",
+      "note": "Runtime matching requires one or more ASCII digits between thread_history_ and .sqlite. Reports file metadata and presence only; the database is not opened or parsed."
+    },
+    {
+      "id": "codex.state_sqlite",
+      "tool": "codex",
+      "family": "state",
+      "relative_path": ".codex/state_*.sqlite",
+      "path_kind": "glob",
+      "priority": "medium",
+      "platforms": [
+        "windows",
+        "darwin",
+        "linux"
+      ],
+      "confirmed_by": [
+        "blacklight.scout.endpoint_assessment",
+        "blacklight.scout.endpoint_assessment_posix",
+        "blacklight.rules.osquery_inventory_windows",
+        "blacklight.rules.osquery_inventory_posix"
+      ],
+      "assessment_coverage": "recursively_discovered",
+      "note": "Runtime matching requires one or more ASCII digits between state_ and .sqlite. Reports file metadata and presence only; the database is not opened or parsed."
+    },
+    {
+      "id": "codex.memories_sqlite",
+      "tool": "codex",
+      "family": "memories",
+      "relative_path": ".codex/memories_*.sqlite",
+      "path_kind": "glob",
+      "priority": "medium",
+      "platforms": [
+        "windows",
+        "darwin",
+        "linux"
+      ],
+      "confirmed_by": [
+        "blacklight.scout.endpoint_assessment",
+        "blacklight.scout.endpoint_assessment_posix",
+        "blacklight.rules.osquery_inventory_windows",
+        "blacklight.rules.osquery_inventory_posix"
+      ],
+      "assessment_coverage": "recursively_discovered",
+      "note": "Runtime matching requires one or more ASCII digits between memories_ and .sqlite. Reports file metadata and presence only; the database is not opened or parsed."
+    },
+    {
+      "id": "codex.goals_sqlite",
+      "tool": "codex",
+      "family": "goals",
+      "relative_path": ".codex/goals_*.sqlite",
+      "path_kind": "glob",
+      "priority": "medium",
+      "platforms": [
+        "windows",
+        "darwin",
+        "linux"
+      ],
+      "confirmed_by": [
+        "blacklight.scout.endpoint_assessment",
+        "blacklight.scout.endpoint_assessment_posix",
+        "blacklight.rules.osquery_inventory_windows",
+        "blacklight.rules.osquery_inventory_posix"
+      ],
+      "assessment_coverage": "recursively_discovered",
+      "note": "Runtime matching requires one or more ASCII digits between goals_ and .sqlite. Reports file metadata and presence only; the database is not opened or parsed."
     },
     {
       "id": "codex.auth",

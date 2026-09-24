@@ -16,6 +16,8 @@ Use this checklist after catalog scaffolding. Search by both the canonical tool 
 - Regenerate `blacklight-scout/catalog/static_targets_generated.h` and `blacklight-scout/managed/GeneratedTargets.cs`; never hand-edit them.
 - Inspect native and managed tool ordering, display names, aliases, filter matching, family matching, and triage priority logic.
 - Inspect Windows BOF behavior separately from standalone native and managed Scout behavior.
+- Place new human result sections after `ASSESSMENT SUMMARY` and before per-tool details. Match existing uppercase `[i]` headers, four-space status lines, and deeper-indented paths. Use human-readable sizes and correct singular/plural labels. Keep the same section order and wording across all Scout tiers.
+- Update `blacklight-scout/releases/ai_path_scout/sample_output.txt` and focused smoke fixtures when changing human output. Assert placement and formatting, not only the presence of keywords.
 - Update catalog/header parity tests and smoke fixtures when the tool set changes.
 
 Useful search:

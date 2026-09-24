@@ -4,6 +4,17 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) where applicable.
 
+## [Unreleased]
+
+### Added
+
+- Metadata-only existence checks for numbered Codex `logs`, `thread_history`, `state`, `memories`, and `goals` SQLite databases across Scout and Defender Rules inventory.
+
+### Changed
+
+- Show Codex SQLite database status in its own section after the Scout assessment summary, with version counts, newest file size and modification time, and an indented path.
+- Document the Scout output layout in the agent-artifact skill and update the release sample and smoke checks.
+
 ## [0.2.1] - 2026-09-21
 
 ### Added

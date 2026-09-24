@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -70,6 +71,21 @@ namespace Blacklight.Scout.Managed
         internal DateTime LastWriteUtc;
     }
 
+    internal sealed class CodexDatabaseFamily
+    {
+        internal CodexDatabaseFamily(string name)
+        {
+            Name = name;
+        }
+
+        internal string Name;
+        internal int Count;
+        internal string NewestPath;
+        internal string NewestSuffix;
+        internal long NewestSize;
+        internal DateTime NewestWriteUtc;
+    }
+
     internal static class Program
     {
         private const string Version = "0.2.1";
@@ -95,6 +111,7 @@ namespace Blacklight.Scout.Managed
         private static readonly List<SessionCandidate> LargestSessions = new List<SessionCandidate>();
         private static readonly int[] SessionArtifactCounts = new int[5];
         private static readonly HashSet<string> SeenSessionArtifacts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private static readonly List<CodexDatabaseFamily> CodexDatabaseFamilies = new List<CodexDatabaseFamily>();
         private static int _sessionEntriesScanned;
         private static bool _sessionScanPartial;
         private static bool _sessionScanBudgetExhausted;
@@ -107,6 +124,10 @@ namespace Blacklight.Scout.Managed
         private static int _dynamicDiscoveryLimit = DynamicDiscoveryLimit;
         private static bool _dynamicScanPartial;
         private static bool _triageResultOverflow;
+        private static bool _codexDatabaseRootAvailable;
+        private static bool _codexDatabaseRootMissing;
+        private static bool _codexDatabasePartial;
+        private static bool _codexDatabaseCheckRequested;
 
         private static int Main(string[] args)
         {
@@ -586,6 +607,13 @@ namespace Blacklight.Scout.Managed
             _dynamicDiscoveryLimit = DynamicDiscoveryLimit;
             _dynamicScanPartial = false;
             _triageResultOverflow = false;
+            _codexDatabaseRootAvailable = false;
+            _codexDatabaseRootMissing = false;
+            _codexDatabasePartial = false;
+            _codexDatabaseCheckRequested = false;
+            CodexDatabaseFamilies.Clear();
+            foreach (var family in new[] { "logs", "thread_history", "state", "memories", "goals" })
+                CodexDatabaseFamilies.Add(new CodexDatabaseFamily(family));
         }
 
         private static int CountKnownKeys(string text, IEnumerable<string> keys)
@@ -602,12 +630,22 @@ namespace Blacklight.Scout.Managed
         {
             var profile = Environment.GetEnvironmentVariable("USERPROFILE");
             if (string.IsNullOrEmpty(profile)) profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            if (string.IsNullOrEmpty(profile)) return;
+            var codexAllowed = ToolAllowed("codex", options.IncludeTools, true) && ToolAllowed("codex", options.ExcludeTools, false);
+            if (string.IsNullOrEmpty(profile))
+            {
+                if (codexAllowed)
+                {
+                    _codexDatabaseCheckRequested = true;
+                    _dynamicScanPartial = true;
+                }
+                return;
+            }
             var dynamicTools = new[] { "codex", "claude_code", "cursor", "cursor" };
             var allowedRoots = dynamicTools.Count(tool => ToolAllowed(tool, options.IncludeTools, true) && ToolAllowed(tool, options.ExcludeTools, false));
             if (allowedRoots == 0) return;
             _dynamicDiscoveryLimit = options.DiscoveryCap;
             _dynamicRootLimit = _dynamicDiscoveryLimit / allowedRoots;
+            if (codexAllowed) ScanCodexDatabaseFiles(profile);
             ScanNamedFiles("codex", "rules", Path.Combine(profile, ".codex", "rules"), new[] { ".rules" }, false, options);
             ScanNamedFiles("claude_code", "mcp", Path.Combine(profile, ".claude", "projects"), new[] { ".mcp.json", "sessions-index.json" }, true, options);
             ScanNamedFiles("cursor", "mcp", Path.Combine(profile, ".cursor", "projects"), new[] { ".mcp.json" }, true, options);
@@ -734,12 +772,20 @@ namespace Blacklight.Scout.Managed
             WriteLine("[i]");
             if (sorted.Count == 0)
             {
+                PrintAssessmentSummary(sorted);
+                PrintCodexDatabaseSummary();
                 WriteLine("[i]   0 artifacts found");
                 return;
             }
 
             PrintAssessmentSummary(sorted);
-            foreach (var tool in ToolPresentationOrder(sorted)) PrintToolAssessment(sorted, tool);
+            var tools = ToolPresentationOrder(sorted).ToList();
+            if (!tools.Contains("codex", StringComparer.Ordinal)) PrintCodexDatabaseSummary();
+            foreach (var tool in tools)
+            {
+                if (tool == "codex") PrintCodexDatabaseSummary();
+                PrintToolAssessment(sorted, tool);
+            }
             PrintSessionFiles("PRIORITIZED SESSION ARTIFACTS (newest first)", TopSessions);
             PrintSessionFiles("LARGEST SESSION ARTIFACTS", LargestSessions);
             PrintOtherRecognizedPaths(sorted);
@@ -750,6 +796,172 @@ namespace Blacklight.Scout.Managed
                 WriteLine("[!] Results are incomplete. Increase --discovery-cap to continue.");
             }
 
+        }
+
+        private static void ScanCodexDatabaseFiles(string profile)
+        {
+            _codexDatabaseCheckRequested = true;
+            var root = Path.Combine(profile, ".codex");
+            FileAttributes rootAttributes;
+            try { rootAttributes = File.GetAttributes(root); }
+            catch (FileNotFoundException)
+            {
+                _codexDatabaseRootMissing = true;
+                return;
+            }
+            catch (DirectoryNotFoundException)
+            {
+                _codexDatabaseRootMissing = true;
+                return;
+            }
+            catch
+            {
+                _dynamicScanPartial = true;
+                return;
+            }
+            if ((rootAttributes & FileAttributes.Directory) == 0 || (rootAttributes & FileAttributes.ReparsePoint) != 0)
+            {
+                _dynamicScanPartial = true;
+                return;
+            }
+
+            _codexDatabaseRootAvailable = true;
+            try
+            {
+                foreach (var entry in Directory.EnumerateFileSystemEntries(root))
+                {
+                    if (_dynamicEntriesScanned >= _dynamicDiscoveryLimit || _dynamicRootEntriesScanned >= _dynamicRootLimit)
+                    {
+                        _codexDatabasePartial = true;
+                        _dynamicScanPartial = true;
+                        break;
+                    }
+                    _dynamicEntriesScanned++;
+                    _dynamicRootEntriesScanned++;
+                    var name = Path.GetFileName(entry);
+                    CodexDatabaseFamily matchedFamily = null;
+                    string matchedSuffix = null;
+                    foreach (var family in CodexDatabaseFamilies)
+                    {
+                        string suffix;
+                        if (!TryCodexDatabaseSuffix(name, family.Name, out suffix)) continue;
+                        matchedFamily = family;
+                        matchedSuffix = suffix;
+                        break;
+                    }
+                    if (matchedFamily == null) continue;
+                    FileAttributes attributes;
+                    try { attributes = File.GetAttributes(entry); }
+                    catch
+                    {
+                        _codexDatabasePartial = true;
+                        _dynamicScanPartial = true;
+                        continue;
+                    }
+                    if ((attributes & (FileAttributes.Directory | FileAttributes.ReparsePoint)) != 0) continue;
+
+                    try
+                    {
+                        var info = new FileInfo(entry);
+                        var size = info.Length;
+                        var modified = info.LastWriteTimeUtc;
+                        matchedFamily.Count++;
+                        if (matchedFamily.NewestPath == null || IsNewerCodexDatabase(entry, matchedSuffix, modified, matchedFamily))
+                        {
+                            matchedFamily.NewestPath = entry;
+                            matchedFamily.NewestSuffix = matchedSuffix;
+                            matchedFamily.NewestSize = size;
+                            matchedFamily.NewestWriteUtc = modified;
+                        }
+                    }
+                    catch
+                    {
+                        _codexDatabasePartial = true;
+                        _dynamicScanPartial = true;
+                    }
+                }
+            }
+            catch
+            {
+                _codexDatabasePartial = true;
+                _dynamicScanPartial = true;
+            }
+        }
+
+        private static bool TryCodexDatabaseSuffix(string name, string family, out string suffix)
+        {
+            suffix = null;
+            var prefix = family + "_";
+            if (name.Length <= prefix.Length + ".sqlite".Length ||
+                !name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ||
+                !name.EndsWith(".sqlite", StringComparison.OrdinalIgnoreCase)) return false;
+            suffix = name.Substring(prefix.Length, name.Length - prefix.Length - ".sqlite".Length);
+            if (suffix.Length == 0) return false;
+            foreach (var digit in suffix)
+                if (digit < '0' || digit > '9') return false;
+            return true;
+        }
+
+        private static string NormalizeNumericSuffix(string suffix)
+        {
+            var index = 0;
+            while (index < suffix.Length - 1 && suffix[index] == '0') index++;
+            return suffix.Substring(index);
+        }
+
+        private static bool IsNewerCodexDatabase(string path, string suffix, DateTime modified, CodexDatabaseFamily current)
+        {
+            var timeComparison = DateTime.Compare(modified, current.NewestWriteUtc);
+            if (timeComparison != 0) return timeComparison > 0;
+            var candidateNumber = NormalizeNumericSuffix(suffix);
+            var currentNumber = NormalizeNumericSuffix(current.NewestSuffix);
+            if (candidateNumber.Length != currentNumber.Length) return candidateNumber.Length > currentNumber.Length;
+            var numericComparison = string.Compare(candidateNumber, currentNumber, StringComparison.Ordinal);
+            if (numericComparison != 0) return numericComparison > 0;
+            return string.Compare(Path.GetFileName(path), Path.GetFileName(current.NewestPath), StringComparison.Ordinal) > 0;
+        }
+
+        private static void PrintCodexDatabaseSummary()
+        {
+            if (!_codexDatabaseCheckRequested || CodexDatabaseFamilies.Count == 0) return;
+            WriteLine("[i] CODEX SQLITE DATABASES");
+            foreach (var family in CodexDatabaseFamilies)
+            {
+                if (_codexDatabaseRootMissing)
+                {
+                    WriteLine("    {0}: absent (0 versions)", family.Name);
+                    continue;
+                }
+                if (!_codexDatabaseRootAvailable)
+                {
+                    WriteLine("    {0}: unknown (Codex root unavailable)", family.Name);
+                    continue;
+                }
+                if (_codexDatabasePartial)
+                {
+                    WriteLine("    {0}: partial ({1}){2}", family.Name,
+                        CountLabel(family.Count, "version observed", "versions observed"), CodexDatabaseNewestSummary(family));
+                    if (family.NewestPath != null) WriteLine("        {0}", family.NewestPath);
+                    continue;
+                }
+                if (family.Count == 0)
+                {
+                    WriteLine("    {0}: absent (0 versions)", family.Name);
+                    continue;
+                }
+                WriteLine("    {0}: present ({1}){2}", family.Name,
+                    CountLabel(family.Count, "version", "versions"), CodexDatabaseNewestSummary(family));
+                if (family.NewestPath != null) WriteLine("        {0}", family.NewestPath);
+            }
+            WriteLine("[i]");
+        }
+
+        private static string CodexDatabaseNewestSummary(CodexDatabaseFamily family)
+        {
+            if (family.NewestPath == null) return string.Empty;
+            return string.Format(CultureInfo.InvariantCulture,
+                " | newest observed {0} | modified {1:yyyy-MM-dd'T'HH:mm:ss'Z'}",
+                FormatSize(family.NewestSize), family.NewestWriteUtc);
         }
 
         private static IEnumerable<string> ToolPresentationOrder(List<Result> rows)

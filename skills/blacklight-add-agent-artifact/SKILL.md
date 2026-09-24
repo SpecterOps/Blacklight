@@ -56,6 +56,8 @@ It refuses duplicate ids, duplicate paths, unknown tools, invalid home-relative 
 
 Read [integration-surfaces.md](references/integration-surfaces.md) after scaffolding. Inspect each listed surface and change only those required by the requested support level. A new catalog row does not imply parsing support.
 
+For new Scout output, follow the repository's human assessment layout: place a dedicated uppercase section after `ASSESSMENT SUMMARY`, use indented status and path lines, and keep native, BOF, managed, and POSIX output in sync. Update the release sample output and the affected smoke fixtures with the same layout.
+
 For a new agent, explicitly decide and document whether the change is:
 
 - discovery-only,

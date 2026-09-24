@@ -45,6 +45,7 @@ static int g_auto_select_count = 0;
 #define BL_DYNAMIC_DISCOVERY_LIMIT 5000
 #define BL_DYNAMIC_ROOT_LIMIT (BL_DYNAMIC_DISCOVERY_LIMIT / 4)
 #define BL_DYNAMIC_DISCOVERY_MAX_DEPTH 6
+#define BL_CODEX_SQLITE_FAMILY_COUNT 5
 
 static FILE *g_output_file = NULL;
 
@@ -235,6 +236,24 @@ static int g_dynamic_root_entries_scanned = 0;
 static int g_dynamic_root_limit = BL_DYNAMIC_ROOT_LIMIT;
 static int g_dynamic_discovery_limit = BL_DYNAMIC_DISCOVERY_LIMIT;
 static int g_dynamic_scan_partial = 0;
+
+typedef struct {
+    int count;
+    int has_newest;
+    wchar_t newest_suffix[BL_MAX_PATH_LEN];
+    wchar_t newest_path[BL_MAX_PATH_LEN];
+    long long newest_size;
+    FILETIME newest_write_time;
+} bl_codex_sqlite_family_t;
+
+static const char *g_codex_sqlite_family_names[BL_CODEX_SQLITE_FAMILY_COUNT] = {
+    "logs", "thread_history", "state", "memories", "goals"
+};
+static bl_codex_sqlite_family_t g_codex_sqlite_families[BL_CODEX_SQLITE_FAMILY_COUNT];
+static int g_codex_sqlite_check_requested = 0;
+static int g_codex_sqlite_root_available = 0;
+static int g_codex_sqlite_root_missing = 0;
+static int g_codex_sqlite_scan_partial = 0;
 
 static int ascii_lower(int value) {
     if (value >= 'A' && value <= 'Z') {
@@ -1260,6 +1279,55 @@ static void print_other_recognized_paths(void) {
     if (count) printf("[i] Additional candidate artifacts: %d\n", count);
 }
 
+static void format_size(long long size_bytes, char *buffer, size_t buffer_size);
+
+static void print_codex_sqlite_summary(void) {
+    int family_index;
+    if (!g_codex_sqlite_check_requested) return;
+    printf("[i] CODEX SQLITE DATABASES\n");
+    for (family_index = 0; family_index < BL_CODEX_SQLITE_FAMILY_COUNT; family_index++) {
+        const bl_codex_sqlite_family_t *family = &g_codex_sqlite_families[family_index];
+        SYSTEMTIME utc;
+        char size_text[32];
+        if (g_codex_sqlite_root_missing) {
+            printf("    %s: absent (0 versions)\n", g_codex_sqlite_family_names[family_index]);
+        } else if (!g_codex_sqlite_root_available) {
+            printf("    %s: unknown (Codex root unavailable)\n", g_codex_sqlite_family_names[family_index]);
+        } else if (g_codex_sqlite_scan_partial) {
+            printf("    %s: partial (%d version%s observed)", g_codex_sqlite_family_names[family_index],
+                family->count, family->count == 1 ? "" : "s");
+            if (family->has_newest) {
+                format_size(family->newest_size, size_text, sizeof(size_text));
+                printf(" | newest observed %s | modified ", size_text);
+                if (FileTimeToSystemTime(&family->newest_write_time, &utc))
+                    printf("%04d-%02d-%02dT%02d:%02d:%02dZ", utc.wYear, utc.wMonth, utc.wDay,
+                        utc.wHour, utc.wMinute, utc.wSecond);
+                else
+                    printf("unavailable");
+            }
+            printf("\n");
+        } else if (family->count == 0) {
+            printf("    %s: absent (0 versions)\n", g_codex_sqlite_family_names[family_index]);
+        } else {
+            format_size(family->newest_size, size_text, sizeof(size_text));
+            printf("    %s: present (%d version%s) | newest observed %s | modified ",
+                g_codex_sqlite_family_names[family_index], family->count,
+                family->count == 1 ? "" : "s", size_text);
+            if (FileTimeToSystemTime(&family->newest_write_time, &utc))
+                printf("%04d-%02d-%02dT%02d:%02d:%02dZ\n", utc.wYear, utc.wMonth, utc.wDay,
+                    utc.wHour, utc.wMinute, utc.wSecond);
+            else
+                printf("unavailable\n");
+        }
+        if (family->has_newest) {
+            printf("        ");
+            bl_print_wide_utf8(family->newest_path);
+            printf("\n");
+        }
+    }
+    printf("[i]\n");
+}
+
 static void print_assessment_category(int category, const char *title) {
     int i;
     int printed = 0;
@@ -1664,6 +1732,8 @@ static void print_operator_triage_summary(void) {
     int i;
     printf("[i] Blacklight endpoint assessment\n[i]\n");
     if (g_operator_target_count <= 0) {
+        print_assessment_summary();
+        print_codex_sqlite_summary();
         printf("[i]   0 artifacts found\n");
         return;
     }
@@ -1674,6 +1744,7 @@ static void print_operator_triage_summary(void) {
         operator_target_compare
     );
     print_assessment_summary();
+    print_codex_sqlite_summary();
     for (i = 0; i < (int)(sizeof(tools) / sizeof(tools[0])); i++) print_tool_assessment(tools[i]);
     print_session_files("PRIORITIZED SESSION ARTIFACTS (newest first)", g_top_sessions, g_top_session_count);
     print_session_files("LARGEST SESSION ARTIFACTS", g_largest_sessions, g_largest_session_count);
@@ -1866,6 +1937,172 @@ static void scan_dynamic_tree(
     FindClose(handle);
 }
 
+static int codex_sqlite_family_for_filename(const wchar_t *name, int *family_index, wchar_t *suffix, size_t suffix_capacity) {
+    size_t name_length;
+    size_t suffix_start;
+    size_t suffix_length;
+    int family;
+    size_t i;
+    if (!name || !family_index || !suffix || suffix_capacity == 0 || !wide_ends_with_ascii_ci(name, ".sqlite")) return 0;
+    name_length = wcslen(name);
+    suffix_start = name_length - 7;
+    for (family = 0; family < BL_CODEX_SQLITE_FAMILY_COUNT; family++) {
+        size_t prefix_length = strlen(g_codex_sqlite_family_names[family]);
+        if (suffix_start <= prefix_length + 1 || name[prefix_length] != L'_') continue;
+        for (i = 0; i < prefix_length; i++) {
+            if (wide_lower(name[i]) != (wchar_t)ascii_lower((unsigned char)g_codex_sqlite_family_names[family][i])) break;
+        }
+        if (i != prefix_length) continue;
+        suffix_length = suffix_start - prefix_length - 1;
+        if (suffix_length == 0 || suffix_length >= suffix_capacity) continue;
+        for (i = 0; i < suffix_length; i++) {
+            wchar_t digit = name[prefix_length + 1 + i];
+            if (digit < L'0' || digit > L'9') break;
+            suffix[i] = digit;
+        }
+        if (i != suffix_length) continue;
+        suffix[suffix_length] = L'\0';
+        *family_index = family;
+        return 1;
+    }
+    return 0;
+}
+
+static int compare_numeric_suffix(const wchar_t *left, const wchar_t *right) {
+    size_t left_start = 0;
+    size_t right_start = 0;
+    size_t left_length;
+    size_t right_length;
+    size_t i;
+    while (left[left_start] == L'0' && left[left_start + 1] != L'\0') left_start++;
+    while (right[right_start] == L'0' && right[right_start + 1] != L'\0') right_start++;
+    left_length = wcslen(left + left_start);
+    right_length = wcslen(right + right_start);
+    if (left_length != right_length) return left_length > right_length ? 1 : -1;
+    for (i = 0; i < left_length; i++) {
+        if (left[left_start + i] != right[right_start + i])
+            return left[left_start + i] > right[right_start + i] ? 1 : -1;
+    }
+    return 0;
+}
+
+static const wchar_t *codex_path_filename(const wchar_t *path) {
+    const wchar_t *cursor;
+    const wchar_t *filename = path;
+    if (!path) return L"";
+    for (cursor = path; *cursor; cursor++) if (*cursor == L'\\' || *cursor == L'/') filename = cursor + 1;
+    return filename;
+}
+
+static int codex_sqlite_candidate_newer(
+    const WIN32_FIND_DATAW *data,
+    const wchar_t *path,
+    const wchar_t *suffix,
+    const bl_codex_sqlite_family_t *family
+) {
+    int time_comparison = CompareFileTime(&data->ftLastWriteTime, &family->newest_write_time);
+    int suffix_comparison;
+    if (time_comparison != 0) return time_comparison > 0;
+    suffix_comparison = compare_numeric_suffix(suffix, family->newest_suffix);
+    if (suffix_comparison != 0) return suffix_comparison > 0;
+    return wcscmp(codex_path_filename(path), codex_path_filename(family->newest_path)) > 0;
+}
+
+static void scan_codex_sqlite_files(const wchar_t *profile) {
+    wchar_t root[BL_MAX_PATH_LEN];
+    wchar_t search[BL_MAX_PATH_LEN];
+    wchar_t path[BL_MAX_PATH_LEN];
+    wchar_t suffix[BL_MAX_PATH_LEN];
+    WIN32_FIND_DATAW data;
+    HANDLE handle;
+    DWORD attributes;
+    size_t root_length;
+    int family_index;
+
+    g_codex_sqlite_check_requested = 1;
+    if (_snwprintf(root, BL_MAX_PATH_LEN - 1, L"%ls\\.codex", profile) < 0) {
+        g_codex_sqlite_scan_partial = 1;
+        g_dynamic_scan_partial = 1;
+        return;
+    }
+    root[BL_MAX_PATH_LEN - 1] = L'\0';
+    attributes = GetFileAttributesW(root);
+    if (attributes == INVALID_FILE_ATTRIBUTES) {
+        DWORD error = GetLastError();
+        if (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND) {
+            g_codex_sqlite_root_missing = 1;
+            return;
+        }
+        g_codex_sqlite_scan_partial = 1;
+        g_dynamic_scan_partial = 1;
+        return;
+    }
+    if ((attributes & FILE_ATTRIBUTE_DIRECTORY) == 0 || (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
+        g_codex_sqlite_scan_partial = 1;
+        g_dynamic_scan_partial = 1;
+        return;
+    }
+    g_codex_sqlite_root_available = 1;
+    root_length = wcslen(root);
+    if (root_length + 3 >= BL_MAX_PATH_LEN) {
+        g_codex_sqlite_scan_partial = 1;
+        g_dynamic_scan_partial = 1;
+        return;
+    }
+    wcscpy(search, root);
+    search[root_length++] = L'\\';
+    search[root_length++] = L'*';
+    search[root_length] = L'\0';
+    handle = FindFirstFileW(search, &data);
+    if (handle == INVALID_HANDLE_VALUE) {
+        if (GetLastError() != ERROR_FILE_NOT_FOUND) {
+            g_codex_sqlite_scan_partial = 1;
+            g_dynamic_scan_partial = 1;
+        }
+        return;
+    }
+    do {
+        if (wcscmp(data.cFileName, L".") == 0 || wcscmp(data.cFileName, L"..") == 0) continue;
+        if (g_dynamic_entries_scanned >= g_dynamic_discovery_limit ||
+            g_dynamic_root_entries_scanned >= g_dynamic_root_limit) {
+            g_codex_sqlite_scan_partial = 1;
+            g_dynamic_scan_partial = 1;
+            break;
+        }
+        g_dynamic_entries_scanned++;
+        g_dynamic_root_entries_scanned++;
+        if (data.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) continue;
+        if (!codex_sqlite_family_for_filename(data.cFileName, &family_index, suffix, BL_MAX_PATH_LEN)) continue;
+        if (wcslen(root) + wcslen(data.cFileName) + 2 > BL_MAX_PATH_LEN) {
+            g_codex_sqlite_scan_partial = 1;
+            g_dynamic_scan_partial = 1;
+            continue;
+        }
+        wcscpy(path, root);
+        wcscat(path, L"\\");
+        wcscat(path, data.cFileName);
+        {
+            bl_codex_sqlite_family_t *family = &g_codex_sqlite_families[family_index];
+            long long size_bytes = ((long long)data.nFileSizeHigh << 32) | data.nFileSizeLow;
+            family->count++;
+            if (!family->has_newest || codex_sqlite_candidate_newer(&data, path, suffix, family)) {
+                family->has_newest = 1;
+                family->newest_size = size_bytes;
+                family->newest_write_time = data.ftLastWriteTime;
+                wcsncpy(family->newest_suffix, suffix, BL_MAX_PATH_LEN - 1);
+                family->newest_suffix[BL_MAX_PATH_LEN - 1] = L'\0';
+                wcsncpy(family->newest_path, path, BL_MAX_PATH_LEN - 1);
+                family->newest_path[BL_MAX_PATH_LEN - 1] = L'\0';
+            }
+        }
+    } while (FindNextFileW(handle, &data));
+    if (GetLastError() != ERROR_NO_MORE_FILES && !g_codex_sqlite_scan_partial) {
+        g_codex_sqlite_scan_partial = 1;
+        g_dynamic_scan_partial = 1;
+    }
+    FindClose(handle);
+}
+
 static void scan_dynamic_targets(bl_scan_results_t *results, const bl_scan_filters_t *filters) {
     wchar_t profile[BL_MAX_PATH_LEN];
     wchar_t root[BL_MAX_PATH_LEN];
@@ -1875,7 +2112,14 @@ static void scan_dynamic_targets(bl_scan_results_t *results, const bl_scan_filte
     HANDLE handle;
     DWORD needed = ExpandEnvironmentStringsW(L"%USERPROFILE%", profile, BL_MAX_PATH_LEN);
     int allowed_roots = 0;
-    if (needed == 0 || needed > BL_MAX_PATH_LEN) return;
+    if (needed == 0 || needed > BL_MAX_PATH_LEN || wide_contains_ascii_n_ci(profile, "%USERPROFILE%", 13)) {
+        if (bl_target_allowed("codex", filters)) {
+            g_codex_sqlite_check_requested = 1;
+            g_codex_sqlite_scan_partial = 1;
+            g_dynamic_scan_partial = 1;
+        }
+        return;
+    }
     allowed_roots += bl_target_allowed("codex", filters) ? 1 : 0;
     allowed_roots += bl_target_allowed("claude_code", filters) ? 1 : 0;
     allowed_roots += bl_target_allowed("cursor", filters) ? 2 : 0;
@@ -1883,6 +2127,8 @@ static void scan_dynamic_targets(bl_scan_results_t *results, const bl_scan_filte
     g_dynamic_root_limit = g_dynamic_discovery_limit / allowed_roots;
 
     if (bl_target_allowed("codex", filters)) {
+        g_dynamic_root_entries_scanned = 0;
+        scan_codex_sqlite_files(profile);
         g_dynamic_root_entries_scanned = 0;
         _snwprintf(root, BL_MAX_PATH_LEN - 1, L"%ls\\.codex\\rules", profile);
         _snwprintf(pattern, BL_MAX_PATH_LEN - 1, L"%ls\\*.rules", root);
@@ -2021,6 +2267,11 @@ int main(int argc, char **argv) {
     g_inspection_budget_exhausted = 0;
     g_dynamic_entries_scanned = 0;
     g_dynamic_scan_partial = 0;
+    memset(g_codex_sqlite_families, 0, sizeof(g_codex_sqlite_families));
+    g_codex_sqlite_check_requested = 0;
+    g_codex_sqlite_root_available = 0;
+    g_codex_sqlite_root_missing = 0;
+    g_codex_sqlite_scan_partial = 0;
     if (g_dynamic_discovery_limit < 1) g_dynamic_discovery_limit = BL_DYNAMIC_DISCOVERY_LIMIT;
     if (filters.tools_len > 0) {
         printf("[i] Include filters enabled\n");

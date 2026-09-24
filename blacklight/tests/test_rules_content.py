@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import sqlite3
 import unittest
 from pathlib import Path
 
@@ -119,6 +120,91 @@ class BlacklightRulesContentTests(unittest.TestCase):
                 if "windows" in item.get("platforms", ["windows", "darwin", "linux"]):
                     self.assertIn("\\" + item["relative_path"].replace("/", "\\"), windows)
                 self.assertIn("/" + item["relative_path"], posix)
+
+    def test_codex_sqlite_families_are_metadata_only_and_version_flexible(self) -> None:
+        expected = {
+            "logs": "logs",
+            "thread_history": "thread_history",
+            "state": "state",
+            "memories": "memories",
+            "goals": "goals",
+        }
+        entries = {
+            item["family"]: item
+            for item in self.catalog["artifacts"]
+            if item["id"].startswith("codex.") and item["id"].endswith("_sqlite")
+        }
+        self.assertEqual(set(entries), set(expected))
+        for family, stem in expected.items():
+            with self.subTest(family=family):
+                item = entries[family]
+                self.assertEqual(item["relative_path"], f".codex/{stem}_*.sqlite")
+                self.assertEqual(item["path_kind"], "glob")
+                self.assertEqual(item["platforms"], ["windows", "darwin", "linux"])
+                self.assertEqual(item["assessment_coverage"], "recursively_discovered")
+                self.assertIn("one or more ASCII digits", item["note"])
+                self.assertIn("not opened or parsed", item["note"])
+
+        sql = (self.rules_root / "inventory" / "blacklight_artifact_inventory_posix.sql").read_text(encoding="utf-8")
+        self.assertIn("file.directory = user_homes.directory || '/.codex'", sql)
+        self.assertIn("file.type = 'regular'", sql)
+        for stem in expected.values():
+            with self.subTest(stem=stem):
+                self.assertIn(f"^{stem}_[0-9]+[.]sqlite$", sql)
+
+    def test_posix_codex_sqlite_inventory_matches_only_direct_digit_named_files(self) -> None:
+        sql = (self.rules_root / "inventory" / "blacklight_artifact_inventory_posix.sql").read_text(encoding="utf-8")
+        connection = sqlite3.connect(":memory:")
+        connection.create_function(
+            "regex_match",
+            3,
+            lambda value, pattern, index: (match.group(int(index)) if (match := re.search(pattern, value or "")) else None),
+        )
+        connection.executescript(
+            """
+            CREATE TABLE users (username TEXT, directory TEXT);
+            CREATE TABLE os_version (platform TEXT);
+            CREATE TABLE file (
+              path TEXT, directory TEXT, filename TEXT, type TEXT,
+              uid INTEGER, gid INTEGER, mode TEXT, size INTEGER, mtime INTEGER
+            );
+            INSERT INTO users VALUES ('tester', '/home/tester');
+            INSERT INTO os_version VALUES ('linux');
+            """
+        )
+        root = "/home/tester/.codex"
+        candidates = [
+            ("logs_6.sqlite", root, "regular"),
+            ("thread_history_6.sqlite", root, "regular"),
+            ("state_5.sqlite", root, "regular"),
+            ("memories_1.sqlite", root, "regular"),
+            ("goals_1.sqlite", root, "regular"),
+            ("logs.sqlite", root, "regular"),
+            ("logs_abc.sqlite", root, "regular"),
+            ("logs_2abc.sqlite", root, "regular"),
+            ("logs_3.sqlite-wal", root, "regular"),
+            ("logs_4.sqlite", root + "/nested", "regular"),
+            ("logs_5.sqlite", root, "symlink"),
+        ]
+        for filename, directory, file_type in candidates:
+            connection.execute(
+                "INSERT INTO file VALUES (?, ?, ?, ?, 1000, 1000, '0600', 128, 1)",
+                (directory + "/" + filename, directory, filename, file_type),
+            )
+
+        rows = connection.execute(sql).fetchall()
+        matched = {(row[1], row[3].rsplit("/", 1)[-1]) for row in rows}
+        self.assertEqual(
+            matched,
+            {
+                ("logs", "logs_6.sqlite"),
+                ("thread_history", "thread_history_6.sqlite"),
+                ("state", "state_5.sqlite"),
+                ("memories", "memories_1.sqlite"),
+                ("goals", "goals_1.sqlite"),
+            },
+        )
+        connection.close()
 
     def test_windows_telemetry_configuration_is_audit_first_and_reversible(self) -> None:
         windows = (self.rules_root / "powershell" / "Invoke-BlacklightWindowsTelemetry.ps1").read_text(encoding="utf-8")
