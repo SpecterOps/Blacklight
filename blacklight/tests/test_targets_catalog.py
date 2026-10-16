@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import importlib.util
 import unittest
 from pathlib import Path
 
@@ -20,8 +21,39 @@ class TargetCatalogAlignmentTests(unittest.TestCase):
         return [(item["tool"], item["family"], item["pattern"]) for item in profile["targets"]]
 
     def test_catalog_tools_match_scope(self) -> None:
-        self.assertEqual(self.catalog["tools"], ["codex", "claude_code", "cursor", "antigravity_cli", "grok"])
+        self.assertEqual(
+            self.catalog["tools"],
+            [
+                "codex",
+                "claude_code",
+                "cursor",
+                "antigravity_cli",
+                "grok",
+                "devin",
+                "strands",
+                "kiro",
+                "opencode",
+                "muse_code",
+            ],
+        )
         self.assertEqual(self.release_metadata["tools"], self.catalog["tools"])
+
+    def test_collection_matrix_is_current_and_linked(self) -> None:
+        generator_path = self.repo_root / "blacklight-scout" / "catalog" / "generate_targets.py"
+        spec = importlib.util.spec_from_file_location("generate_targets", generator_path)
+        generator = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(generator)
+        artifacts = json.loads(generator.ARTIFACTS_JSON.read_text(encoding="utf-8"))
+        matrix = generator.MATRIX_OUT.read_text(encoding="utf-8")
+        self.assertEqual(matrix, generator.render_matrix(self.catalog, artifacts))
+        for tool in self.catalog["tools"]:
+            self.assertIn(f"### {tool}", matrix)
+        for artifact in artifacts["artifacts"]:
+            self.assertIn(artifact["relative_path"].replace("|", "&#124;"), matrix)
+        for platform, profile in self.catalog["platforms"].items():
+            for target in profile["targets"]:
+                self.assertIn(generator.relative_pattern(target["pattern"], profile["home_var"]), matrix)
+        self.assertIn("(docs/matrix.md)", (self.repo_root / "README.md").read_text(encoding="utf-8"))
 
     def test_grok_support_is_actionable_recon_only(self) -> None:
         expected = {
@@ -46,13 +78,179 @@ class TargetCatalogAlignmentTests(unittest.TestCase):
             if tool == "grok"
         }
         self.assertEqual(actual, expected)
-        self.assertNotIn("grok", (self.repo_root / "blacklight" / "session_input.py").read_text(encoding="utf-8").lower())
+        session_input = (self.repo_root / "blacklight" / "session_input.py").read_text(encoding="utf-8").lower()
+        self.assertIn("grok", session_input)
+        self.assertNotIn("auth.json", session_input)
+        self.assertNotIn("memory-v2", session_input)
         native_windows = (self.repo_root / "blacklight-scout" / "native" / "ai_path_scout_windows.c").read_text(encoding="utf-8")
         managed_windows = (self.repo_root / "blacklight-scout" / "managed" / "Program.cs").read_text(encoding="utf-8")
         self.assertIn('target_tool_is(target, "grok")', native_windows)
         self.assertIn('EqualsCi(result.Tool, "grok")', managed_windows)
         self.assertIn("inspection=deferred", native_windows)
         self.assertIn("inspection=deferred", managed_windows)
+
+    def test_devin_and_strands_support_is_existence_enum_only(self) -> None:
+        expected_devin = {
+            ("root", ".local/bin/devin"),
+            ("root", ".local/share/devin"),
+            ("root", ".local/share/devin/cli"),
+            ("root", ".local/share/devin/cli/_versions"),
+            ("root", ".local/share/devin/cli/_versions/current/bin/devin"),
+            ("auth", ".local/share/devin/credentials.toml"),
+            ("logs", ".local/share/devin/cli/logs"),
+            ("root", ".local/share/cognition"),
+            ("root", ".local/share/chisel"),
+            ("config", ".config/devin"),
+            ("config", ".config/cognition"),
+            ("cache", ".cache/devin"),
+            ("cache", ".cache/cognition"),
+            ("root", "AppData/Local/devin"),
+            ("root", "AppData/Local/devin/cli"),
+            ("root", "AppData/Local/devin/cli/bin/devin.exe"),
+            ("root", "AppData/Local/devin/cli/_versions"),
+            ("root", "AppData/Local/devin/bin/devin.exe"),
+            ("logs", "AppData/Roaming/devin/cli/logs"),
+        }
+        expected_strands = {
+            ("root", ".strands"),
+            ("root", ".strands/cli"),
+            ("config", ".strands/cli/config.json"),
+            ("sessions", ".strands/cli/session-roots.json"),
+            ("root", ".local/bin/strands"),
+            ("root", "AppData/Roaming/npm/strands.cmd"),
+            ("root", "AppData/Roaming/npm/strands"),
+        }
+        for tool, expected in (("devin", expected_devin), ("strands", expected_strands)):
+            actual = {
+                (family, pattern.replace("\\", "/").removeprefix("%USERPROFILE%/"))
+                for entry_tool, family, pattern in self._catalog_tuples("windows")
+                if entry_tool == tool
+            }
+            with self.subTest(tool=tool):
+                self.assertEqual(actual, expected)
+        native_windows = (self.repo_root / "blacklight-scout" / "native" / "ai_path_scout_windows.c").read_text(
+            encoding="utf-8"
+        )
+        managed_windows = (self.repo_root / "blacklight-scout" / "managed" / "Program.cs").read_text(encoding="utf-8")
+        self.assertIn('target_tool_is(target, "devin")', native_windows)
+        self.assertIn('target_tool_is(target, "strands")', native_windows)
+        self.assertIn('EqualsCi(result.Tool, "devin")', managed_windows)
+        self.assertIn('EqualsCi(result.Tool, "strands")', managed_windows)
+        session_input = (self.repo_root / "blacklight" / "session_input.py").read_text(encoding="utf-8").lower()
+        self.assertNotIn("devin", session_input)
+        self.assertNotIn("strands", session_input)
+
+    def test_kiro_and_opencode_support_is_existence_enum_only(self) -> None:
+        expected_kiro = {
+            ("root", ".kiro"),
+            ("config", ".kiro/settings"),
+            ("config", ".kiro/settings/cli.json"),
+            ("mcp", ".kiro/settings/mcp.json"),
+            ("config", ".kiro/agents"),
+            ("skills", ".kiro/skills"),
+            ("rules", ".kiro/steering"),
+            ("config", ".kiro/hooks"),
+            ("sessions", ".kiro/sessions"),
+            ("root", ".local/bin/kiro-cli"),
+            ("root", ".local/bin/kiro-cli-chat"),
+            ("root", ".local/bin/q"),
+            ("root", ".local/share/kiro-cli"),
+            ("auth", ".local/share/kiro-cli/data.sqlite3"),
+            ("root", "Library/Application Support/kiro-cli"),
+            ("auth", "Library/Application Support/kiro-cli/data.sqlite3"),
+            ("root", "AppData/Roaming/kiro-cli"),
+            ("auth", "AppData/Roaming/kiro-cli/data.sqlite3"),
+            ("root", "AppData/Local/kiro-cli"),
+            ("root", "AppData/Local/Kiro-Cli"),
+            ("root", ".local/share/amazon-q"),
+            ("auth", ".local/share/amazon-q/data.sqlite3"),
+            ("config", ".aws/amazonq"),
+            ("mcp", ".aws/amazonq/mcp.json"),
+            ("root", "AppData/Local/amazon-q"),
+            ("root", "Library/Application Support/amazon-q"),
+        }
+        expected_opencode = {
+            ("root", ".opencode"),
+            ("root", ".opencode/bin"),
+            ("root", ".opencode/bin/opencode"),
+            ("root", ".local/share/opencode"),
+            ("auth", ".local/share/opencode/auth.json"),
+            ("auth", ".local/share/opencode/opencode.db"),
+            ("logs", ".local/share/opencode/log"),
+            ("sessions", ".local/share/opencode/project"),
+            ("config", ".config/opencode"),
+            ("config", ".config/opencode/opencode.json"),
+            ("config", ".config/opencode/opencode.jsonc"),
+            ("config", ".config/opencode/cli.json"),
+            ("plugins", ".config/opencode/plugins"),
+            ("cache", ".cache/opencode"),
+            ("root", ".local/state/opencode"),
+            ("config", ".local/share/opencode/opencode.json"),
+            ("config", ".local/share/opencode/opencode.jsonc"),
+        }
+        for tool, expected in (("kiro", expected_kiro), ("opencode", expected_opencode)):
+            actual = {
+                (family, pattern.replace("\\", "/").removeprefix("%USERPROFILE%/"))
+                for entry_tool, family, pattern in self._catalog_tuples("windows")
+                if entry_tool == tool
+            }
+            with self.subTest(tool=tool):
+                self.assertEqual(actual, expected)
+        native_windows = (self.repo_root / "blacklight-scout" / "native" / "ai_path_scout_windows.c").read_text(
+            encoding="utf-8"
+        )
+        managed_windows = (self.repo_root / "blacklight-scout" / "managed" / "Program.cs").read_text(encoding="utf-8")
+        self.assertIn('target_tool_is(target, "kiro")', native_windows)
+        self.assertIn('target_tool_is(target, "opencode")', native_windows)
+        self.assertIn('EqualsCi(result.Tool, "kiro")', managed_windows)
+        self.assertIn('EqualsCi(result.Tool, "opencode")', managed_windows)
+        session_input = (self.repo_root / "blacklight" / "session_input.py").read_text(encoding="utf-8").lower()
+        self.assertNotIn("kiro", session_input)
+        self.assertNotIn("opencode", session_input)
+
+    def test_muse_code_support_is_existence_enum_only(self) -> None:
+        expected = {
+            ("root", ".local/bin/muse"),
+            ("root", "AppData/Local/Programs/muse"),
+            ("config", ".config/muse"),
+            ("config", ".config/muse/settings.json"),
+            ("auth", ".config/muse/auth.json"),
+            ("config", ".config/muse/trust.json"),
+            ("skills", ".config/muse/skills"),
+            ("root", ".local/share/muse"),
+            ("sessions", ".local/share/muse/sessions"),
+            ("sessions", ".local/share/muse/session-index.db"),
+            ("workspace", ".local/share/muse/memory"),
+            ("cache", ".local/share/muse/model-catalog"),
+            ("logs", ".local/share/muse/crashes"),
+            ("logs", ".local/share/muse/local-tracing"),
+            ("plugins", ".local/share/muse/plugins"),
+            ("workspace", ".muse/projects"),
+        }
+        actual = {
+            (family, pattern.replace("\\", "/").removeprefix("%USERPROFILE%/"))
+            for entry_tool, family, pattern in self._catalog_tuples("windows")
+            if entry_tool == "muse_code"
+        }
+        self.assertEqual(actual, expected)
+        for forbidden in (".agents/", ".muse/hooks.json", ".mcp.json", "AGENTS.md"):
+            self.assertFalse(any(forbidden in path for _family, path in actual), forbidden)
+        native_windows = (self.repo_root / "blacklight-scout" / "native" / "ai_path_scout_windows.c").read_text(
+            encoding="utf-8"
+        )
+        managed_windows = (self.repo_root / "blacklight-scout" / "managed" / "Program.cs").read_text(encoding="utf-8")
+        native_core = (self.repo_root / "blacklight-scout" / "native" / "ai_path_scout_core.c").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('target_tool_is(target, "muse_code")', native_windows)
+        self.assertIn('EqualsCi(result.Tool, "muse_code")', managed_windows)
+        self.assertIn('"MUSE CODE"', native_windows)
+        self.assertIn('return "MUSE CODE"', managed_windows)
+        self.assertIn('bl_ascii_equal_n(value, value_len, "muse")', native_core)
+        self.assertIn('EqualsCi(filter, "muse")', managed_windows)
+        session_input = (self.repo_root / "blacklight" / "session_input.py").read_text(encoding="utf-8").lower()
+        self.assertNotIn("muse_code", session_input)
+        self.assertNotIn("muse", session_input)
 
     def test_windows_catalog_covers_core_tool_families(self) -> None:
         windows = self._catalog_tuples("windows")

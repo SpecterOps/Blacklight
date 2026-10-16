@@ -3,6 +3,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$releaseMetadata = Get-Content -LiteralPath (Join-Path $PSScriptRoot "..\releases\ai_path_scout\metadata.json") -Raw | ConvertFrom-Json
+$expectedVersion = [regex]::Escape($releaseMetadata.version)
 $native = Join-Path $BuildDir "ai_path_scout-windows-x64.exe"
 $managed = Join-Path $BuildDir "ai_path_scout-managed.exe"
 $targetCapNative = Join-Path $BuildDir "ai_path_scout-windows-target-cap-test.exe"
@@ -79,12 +81,12 @@ not-json
         @{ Path = (Join-Path $fixture ".codex\sessions\medium.jsonl"); Size = 200; Modified = "2026-07-03T00:00:00Z" },
         @{ Path = (Join-Path $fixture ".codex\sessions\large.jsonl"); Size = 300; Modified = "2026-07-02T00:00:00Z" },
         @{ Path = (Join-Path $fixture ".codex\sessions\excluded-fourth.jsonl"); Size = 50; Modified = "2026-07-01T00:00:00Z" },
-        @{ Path = (Join-Path $fixture ".claude\projects\project with space\claude-session.jsonl"); Size = 500; Modified = "2026-07-08T00:00:00Z" },
-        @{ Path = (Join-Path $fixture ".claude\projects\project with space\claude-session-2.jsonl"); Size = 450; Modified = "2026-07-07T00:00:00Z" },
-        @{ Path = (Join-Path $fixture ".claude\projects\project with space\claude-session-3.jsonl"); Size = 425; Modified = "2026-07-06T00:00:00Z" },
-        @{ Path = (Join-Path $fixture ".claude\projects\project with space\excluded-fourth.jsonl"); Size = 25; Modified = "2026-07-05T00:00:00Z" },
-        @{ Path = (Join-Path $fixture ".cursor\chats\workspace\session\store.db"); Size = 400; Modified = "2026-07-10T00:00:00Z" },
-        @{ Path = (Join-Path $fixture ".cursor\projects\workspace\agent-transcripts\cursor-session\cursor-session.jsonl"); Size = 600; Modified = "2026-07-09T00:00:00Z" }
+        @{ Path = (Join-Path $fixture ".claude\projects\project with space\claude-session.jsonl"); Size = 500; Modified = "2026-07-04T00:00:00Z" },
+        @{ Path = (Join-Path $fixture ".claude\projects\project with space\claude-session-2.jsonl"); Size = 450; Modified = "2026-07-03T00:00:00Z" },
+        @{ Path = (Join-Path $fixture ".claude\projects\project with space\claude-session-3.jsonl"); Size = 425; Modified = "2026-07-02T00:00:00Z" },
+        @{ Path = (Join-Path $fixture ".claude\projects\project with space\excluded-fourth.jsonl"); Size = 25; Modified = "2026-07-01T00:00:00Z" },
+        @{ Path = (Join-Path $fixture ".cursor\chats\workspace\session\store.db"); Size = 400 },
+        @{ Path = (Join-Path $fixture ".cursor\projects\workspace\agent-transcripts\cursor-session\cursor-session.jsonl"); Size = 600 }
     )
     foreach ($session in $sessionFixtures) {
         $stream = [System.IO.File]::Open($session.Path, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::ReadWrite)
@@ -124,7 +126,7 @@ not-json
         $codexFirst = ($joined | Select-String -Pattern "(?m)^\[\+\] \[1\] CODEX \| 100 B \| modified 2026-07-04$" -AllMatches).Matches.Count
         if ($codexFirst -ne 1) { throw "$exe did not rank the newest Codex session ahead of larger older artifacts" }
         if ($joined -match "\([0-9]+ bytes\)") { throw "$exe retained exact byte counts in human output" }
-        if ($topSection -match "excluded-fourth\.jsonl" -or $largestSection -match "excluded-fourth\.jsonl") { throw "$exe emitted a fourth-ranked session file" }
+        if ($topSection -match "excluded-fourth\.jsonl" -or $largestSection -match "excluded-fourth\.jsonl") { throw "$exe emitted a fourth-ranked session file:`n$topSection`n$largestSection" }
         foreach ($secret in @("SECRET_CANARY_TOKEN", "SECRET_CANARY_ACCESS_TOKEN", "SECRET_CANARY_REFRESH_TOKEN", "secret-canary@example.test", "PRIVATE_ACCOUNT_ID", "SECRET_CANARY_COMMAND", "SECRET_CANARY_CHAT", "SECRET_CANARY_PROVIDER", "SECRET_CANARY_MODEL", "SECRET_CANARY_REASONING", "SECRET_CANARY_SANDBOX", "SECRET_CANARY_APPROVAL", "c:\users\fixture\trusted", "users\fixture")) {
             if ($joined -match [regex]::Escape($secret)) { throw "$exe leaked protected value: $secret" }
         }
@@ -144,7 +146,7 @@ not-json
         }
         if ($removedSummaryExitCode -ne 2) { throw "$exe still accepts removed --summary mode: $($removedSummary -join ' ')" }
         $version = (& $exe --version) -join "`n"
-        if ($LASTEXITCODE -ne 0 -or $version -notmatch "0\.2\.1") { throw "$exe --version failed" }
+        if ($LASTEXITCODE -ne 0 -or $version -notmatch (" " + $expectedVersion + "$")) { throw "$exe --version failed" }
 
         foreach ($removedMode in @("--paths", "--triage", "--analyze", "--tsv", "--jsonl")) {
             Assert-CommandFails -Executable $exe -Arguments @($removedMode)
@@ -188,6 +190,52 @@ not-json
             throw "Native Scout target cap reinspected or corrupted the last stored record:`n$targetCapOutput"
         }
     }
+
+    # Recon-only tools must filter consistently without inspecting auth/config/session bodies.
+    $reconTools = @(
+        @{ Id = "devin"; Label = "DEVIN"; Aliases = @("devin-cli"); Auth = ".local\share\devin\credentials.toml"; Config = $null; Session = $null },
+        @{ Id = "strands"; Label = "STRANDS"; Aliases = @("strands-cli", "strands-agents"); Auth = $null; Config = ".strands\cli\config.json"; Session = ".strands\cli\session-roots.json" },
+        @{ Id = "kiro"; Label = "KIRO"; Aliases = @("kiro-cli"); Auth = ".local\share\kiro-cli\data.sqlite3"; Config = ".kiro\settings\cli.json"; Session = ".kiro\sessions\canary.jsonl" },
+        @{ Id = "opencode"; Label = "OPENCODE"; Aliases = @("opencode-ai"); Auth = ".local\share\opencode\auth.json"; Config = ".config\opencode\opencode.json"; Session = ".local\share\opencode\project\canary.jsonl" },
+        @{ Id = "muse_code"; Label = "MUSE CODE"; Aliases = @("muse", "muse-code"); Auth = ".config\muse\auth.json"; Config = ".config\muse\settings.json"; Session = ".local\share\muse\sessions\canary.jsonl" }
+    )
+    foreach ($tool in $reconTools) {
+        foreach ($relativePath in @($tool.Auth, $tool.Config, $tool.Session)) {
+            if (-not $relativePath) { continue }
+            $canaryPath = Join-Path $fixture $relativePath
+            New-Item -ItemType Directory -Force -Path (Split-Path -Parent $canaryPath) | Out-Null
+            [IO.File]::WriteAllText($canaryPath, '{"access_token":"RECON_BODY_CANARY","model":"RECON_BODY_CANARY","messages":[{"content":"RECON_BODY_CANARY"}]}')
+        }
+        $canonicalOutputs = @()
+        foreach ($exe in @($native, $managed)) {
+            $canonical = (& $exe --include-tool $tool.Id) -join "`n"
+            if ($LASTEXITCODE -ne 0 -or $canonical -notmatch [regex]::Escape("[i] " + $tool.Label)) {
+                throw "$exe did not detect recon-only tool $($tool.Id)"
+            }
+            if ($canonical -match "RECON_BODY_CANARY|[1-9][0-9]* suspected credential field|[1-9][0-9]* recognized setting|\[i\] CODEX|\[i\] CLAUDE CODE") {
+                throw "$exe inspected recon-only bodies or ignored the filter for $($tool.Id)"
+            }
+            foreach ($alias in $tool.Aliases) {
+                $aliasOutput = (& $exe --include-tool $alias) -join "`n"
+                if ($LASTEXITCODE -ne 0 -or $aliasOutput -ne $canonical) { throw "$exe alias $alias diverged from $($tool.Id)" }
+            }
+            $canonicalOutputs += $canonical
+        }
+        if ($canonicalOutputs[0] -ne $canonicalOutputs[1]) { throw "Native/managed recon parity failed for $($tool.Id):`nNative:`n$($canonicalOutputs[0])`nManaged:`n$($canonicalOutputs[1])" }
+    }
+    # A recognized filter with no matching artifacts must succeed with zero detected tools.
+    $emptyProfile = Join-Path $fixture "empty-profile"
+    New-Item -ItemType Directory -Path $emptyProfile | Out-Null
+    $env:USERPROFILE = $emptyProfile
+    try {
+        foreach ($exe in @($native, $managed)) {
+            foreach ($tool in $reconTools) {
+                $emptyOutput = (& $exe --include-tool $tool.Id) -join "`n"
+                if ($LASTEXITCODE -ne 0 -or $emptyOutput -notmatch "0 artifacts found") { throw "$exe missing-path probe failed for $($tool.Id)" }
+            }
+        }
+    }
+    finally { $env:USERPROFILE = $fixture }
 
     $assembly = [Reflection.Assembly]::LoadFile((Resolve-Path -LiteralPath $managed).Path)
     $entryType = $assembly.GetType("Blacklight.Scout.Managed.Program", $true)

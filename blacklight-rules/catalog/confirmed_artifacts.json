@@ -30,14 +30,53 @@
       "\\.claude",
       "\\.cursor",
       "\\.gemini\\antigravity-cli",
-      "\\.grok"
+      "\\.grok",
+      "\\.local\\share\\devin",
+      "\\.config\\devin",
+      "\\AppData\\Local\\devin",
+      "\\.strands",
+      "\\.kiro",
+      "\\.local\\share\\kiro-cli",
+      "\\AppData\\Roaming\\kiro-cli",
+      "\\AppData\\Local\\kiro-cli",
+      "\\AppData\\Local\\Kiro-Cli",
+      "\\.local\\share\\amazon-q",
+      "\\.aws\\amazonq",
+      "\\AppData\\Local\\amazon-q",
+      "\\.opencode",
+      "\\.local\\share\\opencode",
+      "\\.config\\opencode",
+      "\\.cache\\opencode",
+      "\\.local\\state\\opencode",
+      "\\.config\\muse",
+      "\\.local\\share\\muse",
+      "\\.muse",
+      "\\AppData\\Local\\Programs\\muse"
     ],
     "posix_roots": [
       "/.codex",
       "/.claude",
       "/.cursor",
       "/.gemini/antigravity-cli",
-      "/.grok"
+      "/.grok",
+      "/.local/share/devin",
+      "/.config/devin",
+      "/.strands",
+      "/.kiro",
+      "/.local/share/kiro-cli",
+      "/Library/Application Support/kiro-cli",
+      "/.local/share/amazon-q",
+      "/.aws/amazonq",
+      "/Library/Application Support/amazon-q",
+      "/.opencode",
+      "/.local/share/opencode",
+      "/.config/opencode",
+      "/.cache/opencode",
+      "/.local/state/opencode",
+      "/.config/muse",
+      "/.local/share/muse",
+      "/.muse",
+      "/AppData/Local/Programs/muse"
     ],
     "standalone_home_files": [
       ".claude.json"
@@ -58,7 +97,28 @@
     ".claude.json",
     ".cursor/",
     ".gemini/antigravity-cli/",
-    ".grok/"
+    ".grok/",
+    ".local/share/devin/",
+    ".config/devin/",
+    "AppData/Local/devin/",
+    ".strands/",
+    ".kiro/",
+    ".local/share/kiro-cli/",
+    "AppData/Roaming/kiro-cli/",
+    "AppData/Local/kiro-cli/",
+    "AppData/Local/Kiro-Cli/",
+    ".local/share/amazon-q/",
+    ".aws/amazonq/",
+    "AppData/Local/amazon-q/",
+    ".opencode/",
+    ".local/share/opencode/",
+    ".config/opencode/",
+    ".cache/opencode/",
+    ".local/state/opencode/",
+    ".config/muse/",
+    ".local/share/muse/",
+    ".muse/",
+    "AppData/Local/Programs/muse/"
   ],
   "artifacts": [
     {
@@ -1130,6 +1190,1026 @@
       "family": "worktrees",
       "relative_path": ".grok/worktrees.db",
       "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "devin.bin_local",
+      "tool": "devin",
+      "family": "root",
+      "relative_path": ".local/bin/devin",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "devin.root_xdg_data",
+      "tool": "devin",
+      "family": "root",
+      "relative_path": ".local/share/devin",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "devin.root_cli",
+      "tool": "devin",
+      "family": "root",
+      "relative_path": ".local/share/devin/cli",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "devin.root_versions",
+      "tool": "devin",
+      "family": "root",
+      "relative_path": ".local/share/devin/cli/_versions",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "devin.bin_current",
+      "tool": "devin",
+      "family": "root",
+      "relative_path": ".local/share/devin/cli/_versions/current/bin/devin",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "devin.credentials",
+      "tool": "devin",
+      "family": "auth",
+      "relative_path": ".local/share/devin/credentials.toml",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "devin.cli_logs",
+      "tool": "devin",
+      "family": "logs",
+      "relative_path": ".local/share/devin/cli/logs",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "devin.root_cognition_legacy",
+      "tool": "devin",
+      "family": "root",
+      "relative_path": ".local/share/cognition",
+      "path_kind": "directory",
+      "priority": "low",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "devin.root_chisel_legacy",
+      "tool": "devin",
+      "family": "root",
+      "relative_path": ".local/share/chisel",
+      "path_kind": "directory",
+      "priority": "low",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "devin.config",
+      "tool": "devin",
+      "family": "config",
+      "relative_path": ".config/devin",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "devin.config_cognition_legacy",
+      "tool": "devin",
+      "family": "config",
+      "relative_path": ".config/cognition",
+      "path_kind": "directory",
+      "priority": "low",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "devin.cache",
+      "tool": "devin",
+      "family": "cache",
+      "relative_path": ".cache/devin",
+      "path_kind": "directory",
+      "priority": "low",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "devin.cache_cognition_legacy",
+      "tool": "devin",
+      "family": "cache",
+      "relative_path": ".cache/cognition",
+      "path_kind": "directory",
+      "priority": "low",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "devin.root_localappdata",
+      "tool": "devin",
+      "family": "root",
+      "relative_path": "AppData/Local/devin",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "devin.root_localappdata_cli",
+      "tool": "devin",
+      "family": "root",
+      "relative_path": "AppData/Local/devin/cli",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "devin.bin_localappdata_cli",
+      "tool": "devin",
+      "family": "root",
+      "relative_path": "AppData/Local/devin/cli/bin/devin.exe",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "devin.root_localappdata_versions",
+      "tool": "devin",
+      "family": "root",
+      "relative_path": "AppData/Local/devin/cli/_versions",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "devin.bin_localappdata_legacy",
+      "tool": "devin",
+      "family": "root",
+      "relative_path": "AppData/Local/devin/bin/devin.exe",
+      "path_kind": "file",
+      "priority": "low",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "devin.logs_appdata",
+      "tool": "devin",
+      "family": "logs",
+      "relative_path": "AppData/Roaming/devin/cli/logs",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "strands.root",
+      "tool": "strands",
+      "family": "root",
+      "relative_path": ".strands",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "strands.root_cli",
+      "tool": "strands",
+      "family": "root",
+      "relative_path": ".strands/cli",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "strands.config",
+      "tool": "strands",
+      "family": "config",
+      "relative_path": ".strands/cli/config.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "strands.session_roots",
+      "tool": "strands",
+      "family": "sessions",
+      "relative_path": ".strands/cli/session-roots.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "strands.bin_local",
+      "tool": "strands",
+      "family": "root",
+      "relative_path": ".local/bin/strands",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "strands.bin_npm_cmd",
+      "tool": "strands",
+      "family": "root",
+      "relative_path": "AppData/Roaming/npm/strands.cmd",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "strands.bin_npm",
+      "tool": "strands",
+      "family": "root",
+      "relative_path": "AppData/Roaming/npm/strands",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.kiro",
+      "tool": "kiro",
+      "family": "root",
+      "relative_path": ".kiro",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.config_kiro_settings",
+      "tool": "kiro",
+      "family": "config",
+      "relative_path": ".kiro/settings",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.config_kiro_settings_clijson",
+      "tool": "kiro",
+      "family": "config",
+      "relative_path": ".kiro/settings/cli.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.mcp_kiro_settings_mcpjson",
+      "tool": "kiro",
+      "family": "mcp",
+      "relative_path": ".kiro/settings/mcp.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.config_kiro_agents",
+      "tool": "kiro",
+      "family": "config",
+      "relative_path": ".kiro/agents",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.skills_kiro_skills",
+      "tool": "kiro",
+      "family": "skills",
+      "relative_path": ".kiro/skills",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.rules_kiro_steering",
+      "tool": "kiro",
+      "family": "rules",
+      "relative_path": ".kiro/steering",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.config_kiro_hooks",
+      "tool": "kiro",
+      "family": "config",
+      "relative_path": ".kiro/hooks",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.sessions_kiro_sessions",
+      "tool": "kiro",
+      "family": "sessions",
+      "relative_path": ".kiro/sessions",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.local_bin_kiro_cli",
+      "tool": "kiro",
+      "family": "root",
+      "relative_path": ".local/bin/kiro-cli",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.local_bin_kiro_cli_chat",
+      "tool": "kiro",
+      "family": "root",
+      "relative_path": ".local/bin/kiro-cli-chat",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.local_bin_q",
+      "tool": "kiro",
+      "family": "root",
+      "relative_path": ".local/bin/q",
+      "path_kind": "file",
+      "priority": "low",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.local_share_kiro_cli",
+      "tool": "kiro",
+      "family": "root",
+      "relative_path": ".local/share/kiro-cli",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.auth_local_share_kiro_cli_datasqlite3",
+      "tool": "kiro",
+      "family": "auth",
+      "relative_path": ".local/share/kiro-cli/data.sqlite3",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.appsupport_kiro_cli",
+      "tool": "kiro",
+      "family": "root",
+      "relative_path": "Library/Application Support/kiro-cli",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.auth_appsupport_kiro_cli_datasqlite3",
+      "tool": "kiro",
+      "family": "auth",
+      "relative_path": "Library/Application Support/kiro-cli/data.sqlite3",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.appdata_roaming_kiro_cli",
+      "tool": "kiro",
+      "family": "root",
+      "relative_path": "AppData/Roaming/kiro-cli",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.auth_appdata_roaming_kiro_cli_datasqlite3",
+      "tool": "kiro",
+      "family": "auth",
+      "relative_path": "AppData/Roaming/kiro-cli/data.sqlite3",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.appdata_local_kiro_cli",
+      "tool": "kiro",
+      "family": "root",
+      "relative_path": "AppData/Local/kiro-cli",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.appdata_local_Kiro_Cli",
+      "tool": "kiro",
+      "family": "root",
+      "relative_path": "AppData/Local/Kiro-Cli",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.local_share_amazon_q",
+      "tool": "kiro",
+      "family": "root",
+      "relative_path": ".local/share/amazon-q",
+      "path_kind": "directory",
+      "priority": "low",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.auth_local_share_amazon_q_datasqlite3",
+      "tool": "kiro",
+      "family": "auth",
+      "relative_path": ".local/share/amazon-q/data.sqlite3",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.config_aws_amazonq",
+      "tool": "kiro",
+      "family": "config",
+      "relative_path": ".aws/amazonq",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.mcp_aws_amazonq_mcpjson",
+      "tool": "kiro",
+      "family": "mcp",
+      "relative_path": ".aws/amazonq/mcp.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.appdata_local_amazon_q",
+      "tool": "kiro",
+      "family": "root",
+      "relative_path": "AppData/Local/amazon-q",
+      "path_kind": "directory",
+      "priority": "low",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.appsupport_amazon_q",
+      "tool": "kiro",
+      "family": "root",
+      "relative_path": "Library/Application Support/amazon-q",
+      "path_kind": "directory",
+      "priority": "low",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "opencode.opencode",
+      "tool": "opencode",
+      "family": "root",
+      "relative_path": ".opencode",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "opencode.opencode_bin",
+      "tool": "opencode",
+      "family": "root",
+      "relative_path": ".opencode/bin",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "opencode.opencode_bin_opencode",
+      "tool": "opencode",
+      "family": "root",
+      "relative_path": ".opencode/bin/opencode",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "opencode.local_share_opencode",
+      "tool": "opencode",
+      "family": "root",
+      "relative_path": ".local/share/opencode",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "opencode.auth_local_share_opencode_authjson",
+      "tool": "opencode",
+      "family": "auth",
+      "relative_path": ".local/share/opencode/auth.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "opencode.auth_local_share_opencode_opencodedb",
+      "tool": "opencode",
+      "family": "auth",
+      "relative_path": ".local/share/opencode/opencode.db",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "opencode.logs_local_share_opencode_log",
+      "tool": "opencode",
+      "family": "logs",
+      "relative_path": ".local/share/opencode/log",
+      "path_kind": "directory",
+      "priority": "low",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "opencode.sessions_local_share_opencode_project",
+      "tool": "opencode",
+      "family": "sessions",
+      "relative_path": ".local/share/opencode/project",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "opencode.config_config_opencode",
+      "tool": "opencode",
+      "family": "config",
+      "relative_path": ".config/opencode",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "opencode.config_config_opencode_opencodejson",
+      "tool": "opencode",
+      "family": "config",
+      "relative_path": ".config/opencode/opencode.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "opencode.config_config_opencode_opencodejsonc",
+      "tool": "opencode",
+      "family": "config",
+      "relative_path": ".config/opencode/opencode.jsonc",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "opencode.config_config_opencode_clijson",
+      "tool": "opencode",
+      "family": "config",
+      "relative_path": ".config/opencode/cli.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "opencode.plugins_config_opencode_plugins",
+      "tool": "opencode",
+      "family": "plugins",
+      "relative_path": ".config/opencode/plugins",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "opencode.cache_cache_opencode",
+      "tool": "opencode",
+      "family": "cache",
+      "relative_path": ".cache/opencode",
+      "path_kind": "file",
+      "priority": "low",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "opencode.local_state_opencode",
+      "tool": "opencode",
+      "family": "root",
+      "relative_path": ".local/state/opencode",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "opencode.config_local_share_opencode_opencodejson",
+      "tool": "opencode",
+      "family": "config",
+      "relative_path": ".local/share/opencode/opencode.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "opencode.config_local_share_opencode_opencodejsonc",
+      "tool": "opencode",
+      "family": "config",
+      "relative_path": ".local/share/opencode/opencode.jsonc",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "muse_code.local_bin_muse",
+      "tool": "muse_code",
+      "family": "root",
+      "relative_path": ".local/bin/muse",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "muse_code.appdata_local_programs_muse",
+      "tool": "muse_code",
+      "family": "root",
+      "relative_path": "AppData/Local/Programs/muse",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "muse_code.config_muse",
+      "tool": "muse_code",
+      "family": "config",
+      "relative_path": ".config/muse",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "muse_code.config_muse_settingsjson",
+      "tool": "muse_code",
+      "family": "config",
+      "relative_path": ".config/muse/settings.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "muse_code.auth_muse_authjson",
+      "tool": "muse_code",
+      "family": "auth",
+      "relative_path": ".config/muse/auth.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "muse_code.config_muse_trustjson",
+      "tool": "muse_code",
+      "family": "config",
+      "relative_path": ".config/muse/trust.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "muse_code.skills_muse_skills",
+      "tool": "muse_code",
+      "family": "skills",
+      "relative_path": ".config/muse/skills",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "muse_code.local_share_muse",
+      "tool": "muse_code",
+      "family": "root",
+      "relative_path": ".local/share/muse",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "muse_code.sessions_muse_sessions",
+      "tool": "muse_code",
+      "family": "sessions",
+      "relative_path": ".local/share/muse/sessions",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "muse_code.sessions_muse_session_indexdb",
+      "tool": "muse_code",
+      "family": "sessions",
+      "relative_path": ".local/share/muse/session-index.db",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "muse_code.workspace_muse_memory",
+      "tool": "muse_code",
+      "family": "workspace",
+      "relative_path": ".local/share/muse/memory",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "muse_code.cache_muse_model_catalog",
+      "tool": "muse_code",
+      "family": "cache",
+      "relative_path": ".local/share/muse/model-catalog",
+      "path_kind": "directory",
+      "priority": "low",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "muse_code.logs_muse_crashes",
+      "tool": "muse_code",
+      "family": "logs",
+      "relative_path": ".local/share/muse/crashes",
+      "path_kind": "directory",
+      "priority": "low",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "muse_code.logs_muse_local_tracing",
+      "tool": "muse_code",
+      "family": "logs",
+      "relative_path": ".local/share/muse/local-tracing",
+      "path_kind": "directory",
+      "priority": "low",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "muse_code.plugins_muse_plugins",
+      "tool": "muse_code",
+      "family": "plugins",
+      "relative_path": ".local/share/muse/plugins",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "muse_code.workspace_muse_projects",
+      "tool": "muse_code",
+      "family": "workspace",
+      "relative_path": ".muse/projects",
+      "path_kind": "directory",
       "priority": "medium",
       "confirmed_by": [
         "blacklight.scout.PATH_TARGETS"

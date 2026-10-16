@@ -72,7 +72,7 @@ namespace Blacklight.Scout.Managed
 
     internal static class Program
     {
-        private const string Version = "0.2.1";
+        private const string Version = "0.2.5";
         private static TextWriter _output = Console.Out;
         private static int _hitCount;
         private static int _directoryCount;
@@ -93,7 +93,7 @@ namespace Blacklight.Scout.Managed
         private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(250);
         private static readonly List<SessionCandidate> TopSessions = new List<SessionCandidate>();
         private static readonly List<SessionCandidate> LargestSessions = new List<SessionCandidate>();
-        private static readonly int[] SessionArtifactCounts = new int[5];
+        private static readonly int[] SessionArtifactCounts = new int[10];
         private static readonly HashSet<string> SeenSessionArtifacts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private static int _sessionEntriesScanned;
         private static bool _sessionScanPartial;
@@ -297,6 +297,11 @@ namespace Blacklight.Scout.Managed
             if (EqualsCi(tool, "claude_code")) return EqualsCi(filter, "claude") || EqualsCi(filter, "claude-code");
             if (EqualsCi(tool, "antigravity_cli")) return EqualsCi(filter, "antigravity") || EqualsCi(filter, "antigravity-cli") || EqualsCi(filter, "gemini-antigravity-cli");
             if (EqualsCi(tool, "grok")) return EqualsCi(filter, "grok-cli");
+            if (EqualsCi(tool, "devin")) return EqualsCi(filter, "devin-cli");
+            if (EqualsCi(tool, "strands")) return EqualsCi(filter, "strands-cli") || EqualsCi(filter, "strands-agents");
+            if (EqualsCi(tool, "kiro")) return EqualsCi(filter, "kiro-cli");
+            if (EqualsCi(tool, "opencode")) return EqualsCi(filter, "opencode-ai");
+            if (EqualsCi(tool, "muse_code")) return EqualsCi(filter, "muse") || EqualsCi(filter, "muse-code");
             return false;
         }
 
@@ -415,7 +420,12 @@ namespace Blacklight.Scout.Managed
         private static void InspectKnownArtifact(Result result)
         {
             if (!EqualsCi(result.Type, "file")) return;
-            if (EqualsCi(result.Tool, "grok"))
+            if (EqualsCi(result.Tool, "grok") ||
+                EqualsCi(result.Tool, "devin") ||
+                EqualsCi(result.Tool, "strands") ||
+                EqualsCi(result.Tool, "kiro") ||
+                EqualsCi(result.Tool, "opencode") ||
+                EqualsCi(result.Tool, "muse_code"))
             {
                 AddSafeSignal(result, "inspection=deferred");
                 return;
@@ -754,7 +764,7 @@ namespace Blacklight.Scout.Managed
 
         private static IEnumerable<string> ToolPresentationOrder(List<Result> rows)
         {
-            var preferred = new[] { "codex", "claude_code", "cursor", "antigravity_cli", "grok" };
+            var preferred = new[] { "codex", "claude_code", "cursor", "antigravity_cli", "grok", "devin", "strands", "kiro", "opencode", "muse_code" };
             var present = new HashSet<string>(rows.Select(result => result.Tool), StringComparer.Ordinal);
             foreach (var tool in preferred) if (present.Remove(tool)) yield return tool;
             foreach (var tool in present.OrderBy(value => value, StringComparer.Ordinal)) yield return tool;
@@ -767,6 +777,11 @@ namespace Blacklight.Scout.Managed
             if (tool == "cursor") return "CURSOR";
             if (tool == "antigravity_cli") return "ANTIGRAVITY CLI";
             if (tool == "grok") return "GROK";
+            if (tool == "devin") return "DEVIN";
+            if (tool == "strands") return "STRANDS";
+            if (tool == "kiro") return "KIRO";
+            if (tool == "opencode") return "OPENCODE";
+            if (tool == "muse_code") return "MUSE CODE";
             return tool.Replace('_', ' ').ToUpperInvariant();
         }
 
@@ -842,6 +857,7 @@ namespace Blacklight.Scout.Managed
             if (config.Count > 0) WriteLine("[i]   {0} | {1}{2}", CountLabel(config.Count, "config file", "config files"), CountLabel(config.Sum(result => result.ConfigSettingCount), "recognized setting", "recognized settings"), HealthSuffix(config));
             if (sessions.Count > 0 || sessionArtifacts > 0) {
                 var latest = TopSessions.Where(result => result.Tool == tool).Select(result => result.LastWriteUtc).DefaultIfEmpty(DateTime.MinValue).Max();
+                if (latest == DateTime.MinValue) latest = sessions.Select(result => result.LastWriteUtc).DefaultIfEmpty(DateTime.MinValue).Max();
                 WriteLine("[i]   {0} | {1}{2}{3}", CountLabel(sessions.Count, "session location", "session locations"), CountLabel(sessionArtifacts, "session artifact", "session artifacts"), _sessionScanPartial ? " (partial scan)" : string.Empty, latest == DateTime.MinValue ? HealthSuffix(sessions) : " | latest activity " + latest.ToString("yyyy-MM-dd") + HealthSuffix(sessions));
             }
             WriteLine("[i]");
@@ -1074,6 +1090,11 @@ namespace Blacklight.Scout.Managed
             if (EqualsCi(tool, "cursor")) return 2;
             if (EqualsCi(tool, "antigravity_cli")) return 3;
             if (EqualsCi(tool, "grok")) return 4;
+            if (EqualsCi(tool, "devin")) return 5;
+            if (EqualsCi(tool, "strands")) return 6;
+            if (EqualsCi(tool, "kiro")) return 7;
+            if (EqualsCi(tool, "opencode")) return 8;
+            if (EqualsCi(tool, "muse_code")) return 9;
             return -1;
         }
 
@@ -1156,7 +1177,7 @@ namespace Blacklight.Scout.Managed
         private static void RetainSessionCandidate(List<SessionCandidate> candidates, SessionCandidate candidate, bool largestFirst)
         {
             candidates.Add(candidate);
-            var order = new[] { "codex", "claude_code", "cursor", "antigravity_cli", "grok" };
+            var order = new[] { "codex", "claude_code", "cursor", "antigravity_cli", "grok", "devin", "strands", "kiro", "opencode", "muse_code" };
             candidates.Sort((left, right) =>
             {
                 var toolComparison = Array.IndexOf(order, left.Tool).CompareTo(Array.IndexOf(order, right.Tool));

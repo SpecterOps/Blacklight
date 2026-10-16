@@ -40,7 +40,7 @@ register_assembly ai_path_scout-managed.exe
 execute_assembly -Assembly ai_path_scout-managed.exe
 ```
 
-The executable tier accepts `--include-tool`, `--max-depth` (`0` through `4`), `--discovery-cap N`, and `--out`. Tool IDs are `codex`, `claude_code`, `cursor`, `antigravity_cli`, and `grok`; common aliases such as `claude-code`, `antigravity-cli`, and `grok-cli` also work.
+The executable tier accepts `--include-tool`, `--max-depth` (`0` through `4`), `--discovery-cap N`, and `--out`. Tool IDs are `codex`, `claude_code`, `cursor`, `antigravity_cli`, `grok`, `devin`, `strands`, `kiro`, `opencode`, and `muse_code`; common aliases such as `claude-code`, `antigravity-cli`, `grok-cli`, `devin-cli`, `strands-cli`, `kiro-cli`, `opencode-ai`, `muse`, and `muse-code` also work.
 
 ### macOS and Linux libraries
 
@@ -58,7 +58,7 @@ The macOS dylib is universal: it supports Apple Silicon natively and x86_64 thro
 
 Scout reports only recognized paths and count-only metadata. For every detected tool it can show compact Config, Rules, Auth, and Sessions summaries, followed by paths for nonempty categories.
 
-Grok support is reconnaissance-only. Scout can rank `updates.jsonl` by filesystem metadata and reports the exact `session_search.sqlite` path. All Scout tiers defer Grok content inspection, and Python Session Analysis does not parse Grok files.
+Grok support in Scout is reconnaissance-only. Scout can rank `updates.jsonl` by filesystem metadata and reports the exact `session_search.sqlite` path. All Scout tiers defer Grok content inspection and do not read session bodies. Python Session Analysis parses selected Grok chat artifacts (ACP updates, chat history, prompt history, and session summaries). It does not parse Grok auth, memory, logs, terminal logs, or Scout bodies.
 
 Session results are artifact counts—not conversation counts. The Windows executable tier lists up to three recognized session files by newest modification time and by largest size. Use those results to decide what complete files to collect, then analyze the copies offline:
 

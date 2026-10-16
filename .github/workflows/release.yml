@@ -50,10 +50,14 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: python -m unittest blacklight.tests.test_release_version
 
+      - name: Run Python suite and compile Rules SQL
+        if: runner.os == 'Linux'
+        run: python -m unittest discover -s blacklight/tests -v
+
       - name: Regenerate Scout catalog
         run: |
           python blacklight-scout/catalog/generate_targets.py
-          git diff --exit-code -- blacklight-scout/catalog/static_targets_generated.h blacklight-scout/managed/GeneratedTargets.cs
+          git diff --exit-code -- blacklight-scout/catalog/static_targets_generated.h blacklight-scout/managed/GeneratedTargets.cs docs/matrix.md
 
       - name: Build and verify Scout artifacts
         shell: bash

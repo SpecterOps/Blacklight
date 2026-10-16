@@ -21,7 +21,27 @@ mkdir -p \
   "$fixture_home/.cursor/plans" \
   "$fixture_home/.cursor/chats/workspace/session" \
   "$fixture_home/.cursor/projects/workspace/agent-transcripts/cursor-session" \
-  "$fixture_home/.grok/sessions/workspace/session"
+  "$fixture_home/.grok/sessions/workspace/session" \
+  "$fixture_home/.local/share/devin/cli/_versions/current/bin" \
+  "$fixture_home/.local/bin" \
+  "$fixture_home/.config/devin" \
+  "$fixture_home/.strands/cli" \
+  "$fixture_home/.kiro/settings" \
+  "$fixture_home/.kiro/sessions" \
+  "$fixture_home/.local/share/kiro-cli" \
+  "$fixture_home/.opencode/bin" \
+  "$fixture_home/.local/share/opencode" \
+  "$fixture_home/.config/opencode" \
+  "$fixture_home/.cache/opencode" \
+  "$fixture_home/.local/state/opencode" \
+  "$fixture_home/.config/muse/skills" \
+  "$fixture_home/.local/share/muse/sessions" \
+  "$fixture_home/.local/share/muse/memory" \
+  "$fixture_home/.local/share/muse/plugins" \
+  "$fixture_home/.local/share/muse/crashes" \
+  "$fixture_home/.local/share/muse/local-tracing" \
+  "$fixture_home/.local/share/muse/model-catalog" \
+  "$fixture_home/.muse/projects"
 touch \
   "$fixture_home/.codex/auth.json" \
   "$fixture_home/.codex/config.toml" \
@@ -31,7 +51,27 @@ touch \
   "$fixture_home/.grok/auth.json" \
   "$fixture_home/.grok/config.toml" \
   "$fixture_home/.grok/active_sessions.json" \
-  "$fixture_home/.grok/sessions/session_search.sqlite"
+  "$fixture_home/.grok/sessions/session_search.sqlite" \
+  "$fixture_home/.local/bin/devin" \
+  "$fixture_home/.local/share/devin/credentials.toml" \
+  "$fixture_home/.local/share/devin/cli/_versions/current/bin/devin" \
+  "$fixture_home/.strands/cli/config.json" \
+  "$fixture_home/.strands/cli/session-roots.json" \
+  "$fixture_home/.local/bin/strands" \
+  "$fixture_home/.kiro/settings/cli.json" \
+  "$fixture_home/.kiro/settings/mcp.json" \
+  "$fixture_home/.local/bin/kiro-cli" \
+  "$fixture_home/.local/share/kiro-cli/data.sqlite3" \
+  "$fixture_home/.opencode/bin/opencode" \
+  "$fixture_home/.local/share/opencode/auth.json" \
+  "$fixture_home/.local/share/opencode/opencode.db" \
+  "$fixture_home/.config/opencode/opencode.json" \
+  "$fixture_home/.config/opencode/cli.json" \
+  "$fixture_home/.local/bin/muse" \
+  "$fixture_home/.config/muse/settings.json" \
+  "$fixture_home/.config/muse/auth.json" \
+  "$fixture_home/.config/muse/trust.json" \
+  "$fixture_home/.local/share/muse/session-index.db"
 printf '%s\n' 'prefix_rule(pattern=["git", "diff"], decision="deny")' > "$fixture_home/.codex/rules/project.rules"
 printf '%s\n' '{}' > "$fixture_home/.claude/projects/project with space/.mcp.json"
 printf '%s\n' '{}' > "$fixture_home/.cursor/projects/workspace/.mcp.json"
@@ -83,6 +123,34 @@ for grok_path in \
   "$fixture_home/.grok/sessions/workspace/session/updates.jsonl"; do
   echo "$output" | grep -Fq "$grok_path" || {
     echo "smoke test failed: missing Grok reconnaissance path $grok_path" >&2
+    exit 1
+  }
+done
+for recon_path in \
+  "$fixture_home/.local/share/devin" \
+  "$fixture_home/.local/share/devin/credentials.toml" \
+  "$fixture_home/.config/devin" \
+  "$fixture_home/.local/bin/devin" \
+  "$fixture_home/.strands" \
+  "$fixture_home/.strands/cli/config.json" \
+  "$fixture_home/.strands/cli/session-roots.json" \
+  "$fixture_home/.local/bin/strands" \
+  "$fixture_home/.kiro" \
+  "$fixture_home/.kiro/settings/cli.json" \
+  "$fixture_home/.local/bin/kiro-cli" \
+  "$fixture_home/.local/share/kiro-cli/data.sqlite3" \
+  "$fixture_home/.opencode" \
+  "$fixture_home/.opencode/bin/opencode" \
+  "$fixture_home/.local/share/opencode/auth.json" \
+  "$fixture_home/.config/opencode/opencode.json" \
+  "$fixture_home/.local/bin/muse" \
+  "$fixture_home/.config/muse" \
+  "$fixture_home/.config/muse/auth.json" \
+  "$fixture_home/.local/share/muse" \
+  "$fixture_home/.local/share/muse/session-index.db" \
+  "$fixture_home/.muse/projects"; do
+  echo "$output" | grep -Fq "$recon_path" || {
+    echo "smoke test failed: missing reconnaissance path $recon_path" >&2
     exit 1
   }
 done

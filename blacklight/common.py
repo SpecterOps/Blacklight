@@ -177,6 +177,8 @@ def detect_tool(root: Path, requested: str = "Auto") -> str:
         return "Cursor"
     if normalized in {"antigravity cli", "antigravity-cli", "antigravity_cli"}:
         return "Antigravity CLI"
+    if normalized in {"grok", "grok-cli", "grok cli"}:
+        return "Grok"
     codex_score = sum((root / candidate).exists() for candidate in ("auth.json", "session_index.jsonl", "sessions", "archived_sessions", "config.toml", "rules"))
     claude_score = sum((root / candidate).exists() for candidate in ("settings.json", ".claude.json", "projects", "history.jsonl"))
     cursor_score = sum((root / candidate).exists() for candidate in ("cli-config.json", "prompt_history.json", "plans", "chats", "ai-tracking"))
@@ -184,11 +186,25 @@ def detect_tool(root: Path, requested: str = "Auto") -> str:
         (root / candidate).exists()
         for candidate in ("settings.json", "history.jsonl", "conversation_summaries.db", "conversations", "brain", "cache", "builtin")
     )
-    scores = {"Codex": codex_score, "Claude Code": claude_score, "Cursor": cursor_score, "Antigravity CLI": antigravity_cli_score}
+    grok_names = {"updates.jsonl", "chat_history.jsonl", "prompt_history.jsonl", "summary.json"}
+    try:
+        child_names = {child.name for child in root.iterdir()} if root.is_dir() else set()
+    except OSError:
+        child_names = set()
+    grok_score = sum(name in child_names for name in grok_names)
+    if (root / "memory-v2").is_dir():
+        grok_score += 2
+    scores = {
+        "Codex": codex_score,
+        "Claude Code": claude_score,
+        "Cursor": cursor_score,
+        "Antigravity CLI": antigravity_cli_score,
+        "Grok": grok_score,
+    }
     best_tool, best_score = max(scores.items(), key=lambda item: item[1])
     if best_score > 0 and list(scores.values()).count(best_score) == 1:
         return best_tool
-    raise ValueError(f"Could not determine target tool for '{root}'. Re-run with --target-tool Codex, Claude, Cursor, or Antigravity CLI.")
+    raise ValueError(f"Could not determine target tool for '{root}'. Re-run with --target-tool Codex, Claude, Cursor, Antigravity CLI, or Grok.")
 
 
 @dataclass
@@ -202,6 +218,7 @@ class InputRoots:
     claude_home_config: Path | None
     cursor_root: Path | None
     antigravity_cli_root: Path | None
+    grok_root: Path | None
 
 
 def resolve_input_roots(
@@ -215,6 +232,7 @@ def resolve_input_roots(
     claude_home_config: str | Path | None = None,
     cursor_root: str | Path | None = None,
     antigravity_cli_root: str | Path | None = None,
+    grok_root: str | Path | None = None,
 ) -> InputRoots:
     if package_root and target_root:
         raise ValueError("Supply only one of --package-root or --target-root.")
@@ -222,7 +240,7 @@ def resolve_input_roots(
         raise ValueError("Supply only one of --package-root or live-root analysis.")
     if target_root and live_root:
         raise ValueError("Supply only one of --target-root or live-root analysis.")
-    explicit_live_roots = any((codex_root, claude_root, claude_home_config, cursor_root, antigravity_cli_root))
+    explicit_live_roots = any((codex_root, claude_root, claude_home_config, cursor_root, antigravity_cli_root, grok_root))
     if not package_root and not target_root and not live_root and not explicit_live_roots:
         raise ValueError("Session parsing requires a package root, target root, or explicit session sources.")
     if target_root:
@@ -242,6 +260,7 @@ def resolve_input_roots(
             ),
             cursor_root=root if tool == "Cursor" else None,
             antigravity_cli_root=root if tool == "Antigravity CLI" else None,
+            grok_root=root if tool == "Grok" else None,
         )
     if live_root or explicit_live_roots:
         home = Path.home()
@@ -255,6 +274,7 @@ def resolve_input_roots(
             claude_home_config=_input_path(claude_home_config) if claude_home_config else home / ".claude.json",
             cursor_root=_input_path(cursor_root) if cursor_root else home / ".cursor",
             antigravity_cli_root=_input_path(antigravity_cli_root) if antigravity_cli_root else home / ".gemini" / "antigravity-cli",
+            grok_root=_input_path(grok_root) if grok_root else None,
         )
     root = _input_path(package_root)
     return InputRoots(
@@ -267,6 +287,7 @@ def resolve_input_roots(
         claude_home_config=resolve_package_child(root, (".claude.json", "claude.json", "claude_home/.claude.json")),
         cursor_root=next((root / candidate for candidate in ("cursor", ".cursor") if (root / candidate).exists()), None),
         antigravity_cli_root=next((root / candidate for candidate in ("antigravity_cli", "antigravity-cli", ".gemini/antigravity-cli") if (root / candidate).exists()), None),
+        grok_root=resolve_package_child(root, ("grok", ".grok")),
     )
 
 
@@ -349,6 +370,7 @@ def build_envelope(
                     "claude_home_config": str(roots.claude_home_config) if roots.claude_home_config else None,
                     "cursor": str(roots.cursor_root) if roots.cursor_root else None,
                     "antigravity_cli": str(roots.antigravity_cli_root) if roots.antigravity_cli_root else None,
+                    "grok": str(roots.grok_root) if roots.grok_root else None,
                 }
                 if roots.input_mode == "live_root"
                 else None
