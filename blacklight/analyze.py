@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+from .progress import AnalysisProgress, ProgressCallback
+
 from .common import (
     add_parse_error,
     artifact,
@@ -28,7 +30,14 @@ from .common import (
     tool_result,
     write_output,
 )
-from .session_input import SessionSource
+from .session_input import (
+    SessionSource,
+    _grok_acp_record,
+    _grok_chat_records,
+    _grok_prompt_record,
+    _grok_summary_document,
+    _load_grok_summary_document,
+)
 
 
 def _arbitrary_session_roots(input_root: str | Path) -> InputRoots:
@@ -43,6 +52,7 @@ def _arbitrary_session_roots(input_root: str | Path) -> InputRoots:
         claude_home_config=None,
         cursor_root=None,
         antigravity_cli_root=None,
+        grok_root=None,
     )
 
 
@@ -109,6 +119,10 @@ def _cursor_store_records_from_connection(connection: sqlite3.Connection) -> tup
     metadata = _cursor_store_metadata(connection)
     blob_count = connection.execute("select count(*) from blobs").fetchone()[0]
     for blob_id, data in connection.execute("select id, data from blobs order by rowid"):
+        # Cursor's blobs table also stores protobuf data. Only malformed JSON-shaped
+        # blobs are chat parse errors; binary records are a different artifact type.
+        if not isinstance(data, (bytes, str)) or not data.lstrip().startswith(b"{" if isinstance(data, bytes) else "{"):
+            continue
         try:
             value = json.loads(data)
         except (TypeError, json.JSONDecodeError, UnicodeDecodeError):
@@ -293,6 +307,9 @@ class SessionMetric:
     max_request_bytes: int = 0
     max_response_bytes: int = 0
     turn_aborted: bool = False
+    grok_completed_turn_count: int = 0
+    grok_user_chunk_count: int = 0
+    grok_assistant_chunk_count: int = 0
 
     def add_source(self, path: Path) -> None:
         key = str(path)
@@ -316,7 +333,7 @@ class SessionMetric:
             response_capture_status = "absent_index_only"
         else:
             response_capture_status = "absent_no_assistant_records"
-        return {
+        result = {
             "tool": self.tool,
             "session_id": self.session_id,
             "primary_source_path": sorted(self.source_files)[0] if self.source_files else None,
@@ -348,6 +365,13 @@ class SessionMetric:
             "max_request_bytes": self.max_request_bytes,
             "max_response_bytes": self.max_response_bytes,
         }
+        if self.tool == "Grok":
+            result.update({
+                "completed_turn_count": self.grok_completed_turn_count,
+                "user_message_chunk_count": self.grok_user_chunk_count,
+                "assistant_message_chunk_count": self.grok_assistant_chunk_count,
+            })
+        return result
 
 
 def _claude_session_role(record: dict[str, Any]) -> str:
@@ -425,11 +449,11 @@ def _attachment_snapshot_count(record: dict[str, Any]) -> int:
     return 1 if value not in (None, "") else 0
 
 
-def _collect_sessions(tool_name: str, paths: list[Path]) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+def _collect_sessions(tool_name: str, paths: list[Path], progress: AnalysisProgress | None = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     sessions: dict[str, SessionMetric] = {}
     artifacts: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
-    for index, path in enumerate(paths):
+    for index, path in enumerate((progress or AnalysisProgress()).items(paths)):
         artifact_id = f"{tool_name.lower().replace(' ', '_')}.session_detail.{index}"
         metric_count_before = len(sessions)
         parse_error_count = 0
@@ -523,11 +547,11 @@ def _cursor_session_id(path: Path, metadata: dict[str, Any]) -> str:
     return str(value) if value not in (None, "") else path.parent.name
 
 
-def _collect_cursor_sessions(paths: list[Path]) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+def _collect_cursor_sessions(paths: list[Path], progress: AnalysisProgress | None = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     session_rows: list[dict[str, Any]] = []
     artifacts: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
-    for index, path in enumerate(paths):
+    for index, path in enumerate((progress or AnalysisProgress()).items(paths)):
         artifact_id = f"cursor.session_detail.{index}"
         try:
             metadata, records, blob_count, malformed_blob_count, snapshot_opened = _cursor_store_records(path)
@@ -587,11 +611,11 @@ def _collect_cursor_sessions(paths: list[Path]) -> tuple[list[dict[str, Any]], l
     return session_rows, artifacts, errors
 
 
-def _collect_cursor_agent_transcript_sessions(paths: list[Path]) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+def _collect_cursor_agent_transcript_sessions(paths: list[Path], progress: AnalysisProgress | None = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     session_rows: list[dict[str, Any]] = []
     artifacts: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
-    for index, path in enumerate(paths):
+    for index, path in enumerate((progress or AnalysisProgress()).items(paths)):
         artifact_id = f"cursor.agent_transcript_detail.{index}"
         parse_error_count = 0
         try:
@@ -658,6 +682,9 @@ def _session_aggregate(session_rows: list[dict[str, Any]]) -> dict[str, Any]:
         "session_count": len(session_rows),
         "total_request_message_count": sum(item["request_message_count"] for item in session_rows),
         "total_response_message_count": sum(item["response_message_count"] for item in session_rows),
+        "total_completed_turn_count": sum(item.get("completed_turn_count", 0) for item in session_rows),
+        "total_user_message_chunk_count": sum(item.get("user_message_chunk_count", 0) for item in session_rows),
+        "total_assistant_message_chunk_count": sum(item.get("assistant_message_chunk_count", 0) for item in session_rows),
         "total_tool_event_count": sum(item["tool_event_count"] for item in session_rows),
         "total_machine_context_count": sum(item["machine_context_count"] for item in session_rows),
         "total_attachment_snapshot_count": sum(item["attachment_snapshot_count"] for item in session_rows),
@@ -668,6 +695,403 @@ def _session_aggregate(session_rows: list[dict[str, Any]]) -> dict[str, Any]:
         "total_extracted_content_bytes": sum(item["total_extracted_content_bytes"] for item in session_rows),
         "top_sessions_by_total_extracted_content_bytes": session_rows[:10],
     }
+
+
+_GROK_CHAT_NAMES = {"updates.jsonl", "chat_history.jsonl", "prompt_history.jsonl", "summary.json"}
+
+
+@dataclass
+class _GrokObs:
+    session_id: str
+    kind: str
+    role: str | None
+    texts: list[str]
+    timestamps: list[str] = field(default_factory=list)
+    project: str | None = None
+    project_locked: bool = False
+    title: str | None = None
+    title_rank: int = 0
+    title_updated_at: str | None = None
+    event_kind: str | None = None
+    chunk_count: int = 0
+    event_id: str | None = None
+
+
+def _grok_timestamp(value: Any) -> str | None:
+    if isinstance(value, bool) or value in (None, ""):
+        return None
+    if isinstance(value, (int, float)):
+        seconds = float(value)
+        if seconds > 10_000_000_000:
+            seconds /= 1000.0
+        try:
+            return datetime.fromtimestamp(seconds, timezone.utc).isoformat().replace("+00:00", "Z")
+        except (OverflowError, OSError, ValueError):
+            return str(value)
+    return str(value)
+
+
+def _grok_joined_strings(value: Any) -> str:
+    parts: list[str] = []
+
+    def walk(child: Any) -> None:
+        if isinstance(child, str):
+            if child:
+                parts.append(child)
+        elif isinstance(child, dict):
+            for item in child.values():
+                walk(item)
+        elif isinstance(child, list):
+            for item in child:
+                walk(item)
+
+    walk(value)
+    return "\n".join(parts)
+
+
+def _grok_plain_text(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, dict):
+        text = content.get("text")
+        if isinstance(text, str):
+            return text
+        return _grok_joined_strings(content)
+    if isinstance(content, list):
+        return "".join(_grok_plain_text(item) for item in content)
+    return ""
+
+
+def _grok_tool_text(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    return _grok_joined_strings(value)
+
+
+def _grok_title(document: dict[str, Any]) -> tuple[str | None, int]:
+    generated = document.get("generated_title")
+    if isinstance(generated, str) and generated.strip():
+        return generated.strip(), 2
+    summary = document.get("session_summary")
+    if isinstance(summary, str) and summary.strip():
+        return summary.strip(), 1
+    return None, 0
+
+
+def _grok_record_session_id(record: dict[str, Any], kind: str) -> str | None:
+    if kind == "acp":
+        params = record.get("params")
+        if isinstance(params, dict) and params.get("sessionId"):
+            return str(params["sessionId"])
+    if kind == "summary":
+        info = record.get("info")
+        if isinstance(info, dict) and info.get("id"):
+            return str(info["id"])
+    for key in ("session_id", "sessionId"):
+        value = record.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def _grok_chat_paths(root: Path | None) -> list[Path]:
+    if root is None or not root.exists():
+        return []
+    if root.is_file():
+        return [root] if root.name.lower() in _GROK_CHAT_NAMES else []
+    paths = [
+        path
+        for path in root.rglob("*")
+        if path.is_file()
+        and not path.is_symlink()
+        and path.name.lower() in _GROK_CHAT_NAMES
+        and "blacklight-reports" not in {part.lower() for part in path.parts}
+    ]
+    return sorted(paths, key=lambda path: str(path).lower())
+
+
+def _load_grok_piece(path: Path) -> dict[str, Any]:
+    summary = _load_grok_summary_document(path)
+    if summary is not None:
+        session_id = _grok_record_session_id(summary, "summary")
+        return {
+            "path": path,
+            "kind": "summary",
+            "summary": summary,
+            "records": [],
+            "errors": [],
+            "explicit_ids": [session_id] if session_id else [],
+            "read_error": None,
+        }
+    records: list[tuple[int, dict[str, Any] | None, str | None]] = []
+    errors: list[tuple[int, str]] = []
+    try:
+        for line_number, record, error in iter_jsonl(path):
+            if error:
+                errors.append((line_number, error))
+                records.append((line_number, None, error))
+                continue
+            records.append((line_number, record, None))
+    except OSError as exc:
+        return {
+            "path": path,
+            "kind": "unreadable",
+            "summary": None,
+            "records": [],
+            "errors": [(0, str(exc))],
+            "explicit_ids": [],
+            "read_error": str(exc),
+        }
+    dicts = [record for _, record, error in records if isinstance(record, dict) and error is None]
+    summary_record = next((record for record in dicts if _grok_summary_document(record)), None)
+    if any(_grok_acp_record(record) for record in dicts):
+        kind = "acp"
+    elif any(_grok_prompt_record(record) for record in dicts):
+        kind = "prompt"
+    elif _grok_chat_records(dicts, require_tool_calls=False):
+        kind = "chat"
+    elif summary_record is not None:
+        kind = "summary"
+    else:
+        kind = "unknown"
+    explicit_ids = [session_id for record in dicts if (session_id := _grok_record_session_id(record, kind))]
+    return {
+        "path": path,
+        "kind": kind,
+        "summary": summary_record if kind == "summary" else None,
+        "records": records,
+        "errors": errors,
+        "explicit_ids": explicit_ids,
+        "read_error": None,
+    }
+
+
+def _assign_grok_chat_ids(pieces: list[dict[str, Any]]) -> None:
+    sibling_ids: dict[Path, set[str]] = {}
+    for piece in pieces:
+        if piece["kind"] == "chat":
+            continue
+        found = {session_id for session_id in piece["explicit_ids"] if session_id}
+        if found:
+            sibling_ids.setdefault(piece["path"].parent, set()).update(found)
+    for piece in pieces:
+        if piece["kind"] != "chat" or piece["explicit_ids"]:
+            continue
+        parent = piece["path"].parent
+        found = sibling_ids.get(parent, set())
+        if parent.name in found or len(found) == 1:
+            piece["explicit_ids"] = [parent.name if parent.name in found else next(iter(found))]
+        else:
+            piece["explicit_ids"] = [parent.name]
+
+
+def _summary_observation(document: dict[str, Any], session_id: str) -> _GrokObs:
+    info = document.get("info") if isinstance(document.get("info"), dict) else {}
+    cwd = info.get("cwd")
+    git_root = document.get("git_root_dir")
+    project = str(cwd) if cwd else (str(git_root) if git_root else None)
+    title, title_rank = _grok_title(document)
+    timestamps = [stamp for key in ("created_at", "updated_at") if (stamp := _grok_timestamp(document.get(key)))]
+    return _GrokObs(
+        session_id=str(info.get("id") or session_id),
+        kind="summary",
+        role=None,
+        texts=[],
+        timestamps=timestamps,
+        project=project,
+        project_locked=bool(cwd),
+        title=title,
+        title_rank=title_rank,
+        title_updated_at=_grok_timestamp(document.get("updated_at")),
+    )
+
+
+def _grok_record_observations(record: dict[str, Any], kind: str, session_id: str) -> list[_GrokObs]:
+    stamp = _grok_timestamp(record.get("timestamp"))
+    timestamps = [stamp] if stamp else []
+    if kind == "acp":
+        params = record.get("params") if isinstance(record.get("params"), dict) else {}
+        update = params.get("update") if isinstance(params.get("update"), dict) else {}
+        update_kind = str(update.get("sessionUpdate") or "")
+        if update_kind == "user_message_chunk":
+            return [_GrokObs(session_id, "acp", "request", [_grok_plain_text(update.get("content"))], timestamps, event_kind=update_kind, chunk_count=1)]
+        if update_kind == "agent_message_chunk":
+            return [_GrokObs(session_id, "acp", "response", [_grok_plain_text(update.get("content"))], timestamps, event_kind=update_kind, chunk_count=1)]
+        if update_kind == "agent_thought_chunk":
+            return [_GrokObs(session_id, "acp", "machine_context", [_grok_plain_text(update.get("content"))], timestamps)]
+        if update_kind == "tool_call":
+            return [_GrokObs(session_id, "acp", "tool", [_grok_tool_text(update.get("rawInput"))], timestamps)]
+        if update_kind == "tool_call_update":
+            return [_GrokObs(session_id, "acp", "tool", [_grok_tool_text(update.get("rawOutput"))], timestamps)]
+        return [_GrokObs(session_id, "acp", None, [], timestamps, event_kind=update_kind)]
+    if kind == "prompt":
+        prompt = record.get("prompt")
+        return [_GrokObs(session_id, "prompt", "request", [prompt if isinstance(prompt, str) else ""], timestamps)]
+    if kind == "chat":
+        message_kind = record.get("type")
+        text = _grok_plain_text(record.get("content"))
+        observations: list[_GrokObs] = []
+        if message_kind == "system":
+            observations.append(_GrokObs(session_id, "chat", "machine_context", [text], timestamps))
+        elif message_kind == "user":
+            observations.append(_GrokObs(session_id, "chat", "request", [text], timestamps))
+        elif message_kind == "assistant":
+            if text.strip():
+                observations.append(_GrokObs(session_id, "chat", "response", [text], timestamps))
+            calls = record.get("tool_calls")
+            if isinstance(calls, list):
+                for call in calls:
+                    if isinstance(call, dict) and "arguments" in call:
+                        observations.append(_GrokObs(session_id, "chat", "tool", [_grok_tool_text(call.get("arguments"))], timestamps))
+        return observations
+    if kind == "summary" and _grok_summary_document(record):
+        return [_summary_observation(record, session_id)]
+    return []
+
+
+def _grok_piece_observations(piece: dict[str, Any]) -> list[_GrokObs]:
+    file_id = piece["explicit_ids"][0] if piece["explicit_ids"] else piece["path"].parent.name
+    if piece["kind"] == "summary" and isinstance(piece.get("summary"), dict):
+        return [_summary_observation(piece["summary"], file_id)]
+    observations: list[_GrokObs] = []
+    for _, record, error in piece["records"]:
+        if error or not isinstance(record, dict):
+            continue
+        session_id = _grok_record_session_id(record, piece["kind"]) or file_id
+        for observation in _grok_record_observations(record, piece["kind"], session_id):
+            if piece["kind"] == "acp" and isinstance(record.get("params"), dict):
+                update = record["params"].get("update")
+                if isinstance(update, dict) and update.get("toolCallId"):
+                    observation.event_id = str(update["toolCallId"])
+            if (observation.event_kind in {"user_message_chunk", "agent_message_chunk"} and observations
+                    and observations[-1].event_kind == observation.event_kind
+                    and observations[-1].session_id == observation.session_id):
+                previous = observations[-1]
+                previous.texts[0] += observation.texts[0]
+                previous.timestamps.extend(observation.timestamps)
+                previous.chunk_count += observation.chunk_count
+            else:
+                observations.append(observation)
+    return observations
+
+
+def _grok_authorities(observations: Iterable[_GrokObs]) -> dict[str, str]:
+    kinds: dict[str, set[str]] = {}
+    for observation in observations:
+        kinds.setdefault(observation.session_id, set()).add(observation.kind)
+    authorities: dict[str, str] = {}
+    for session_id, present in kinds.items():
+        if "acp" in present:
+            authorities[session_id] = "acp"
+        elif "chat" in present:
+            authorities[session_id] = "chat"
+        elif "prompt" in present:
+            authorities[session_id] = "prompt"
+        else:
+            authorities[session_id] = "summary"
+    return authorities
+
+
+def _parse_grok_files(
+    paths: list[Path],
+    *,
+    progress: AnalysisProgress | None = None,
+    artifact_prefix: str = "grok.session_detail",
+) -> tuple[dict[str, SessionMetric], dict[str, list[_GrokObs]], list[dict[str, Any]], list[dict[str, Any]]]:
+    pieces = [_load_grok_piece(path) for path in paths]
+    _assign_grok_chat_ids(pieces)
+    grouped = [(piece, _grok_piece_observations(piece)) for piece in pieces]
+    authorities = _grok_authorities(observation for _, observations in grouped for observation in observations)
+    sessions: dict[str, SessionMetric] = {}
+    kept: dict[str, list[_GrokObs]] = {}
+    seen: dict[str, set[tuple[str, str | None, str | None, str | None, str | None, str | None]]] = {}
+    errors: list[dict[str, Any]] = []
+    artifacts: list[dict[str, Any]] = []
+    for index, (piece, observations) in enumerate((progress or AnalysisProgress()).items(grouped)):
+        path = piece["path"]
+        artifact_id = f"{artifact_prefix}.{index}"
+        if piece["kind"] == "unreadable":
+            message = str(piece.get("read_error") or "read failed")
+            errors.append({"path": str(path), "error": message})
+            artifacts.append(artifact(artifact_id, "Grok", path, "Sessions / Chats", "JSONL", exists=True, parsed=False, parse_error=message))
+            continue
+        touched: set[str] = set()
+        for observation in observations:
+            session = sessions.setdefault(observation.session_id, SessionMetric("Grok", observation.session_id))
+            session.add_source(path)
+            touched.add(observation.session_id)
+            for stamp in observation.timestamps:
+                session.add_timestamp(stamp)
+            if observation.project:
+                if observation.project_locked:
+                    session.project_or_cwd = {observation.project}
+                elif not session.project_or_cwd:
+                    session.project_or_cwd.add(observation.project)
+            if observation.title and observation.title_rank >= getattr(session, "_grok_title_rank", 0):
+                session.session_title = observation.title
+                session._grok_title_rank = observation.title_rank
+                session.title_updated_at = observation.title_updated_at
+            if authorities.get(observation.session_id) != observation.kind:
+                continue
+            identity = (observation.kind, observation.role, observation.event_kind, observation.event_id,
+                        sha256_text(observation.texts), observation.timestamps[0] if observation.timestamps else None)
+            session_seen = seen.setdefault(observation.session_id, set())
+            if identity in session_seen:
+                continue
+            session_seen.add(identity)
+            if observation.kind == "acp":
+                session.grok_user_chunk_count += observation.chunk_count if observation.event_kind == "user_message_chunk" else 0
+                session.grok_assistant_chunk_count += observation.chunk_count if observation.event_kind == "agent_message_chunk" else 0
+                session.grok_completed_turn_count += observation.event_kind == "turn_completed"
+            if observation.role is None:
+                continue
+            kept.setdefault(observation.session_id, []).append(observation)
+            session.line_count += 1
+            metric = text_metric({"content": "\n".join(text for text in observation.texts if text)})
+            if observation.role == "response":
+                session.response_message_count += 1
+                session.total_response_bytes += metric["bytes"]
+                session.max_response_bytes = max(session.max_response_bytes, metric["bytes"])
+            elif observation.role == "tool":
+                session.tool_event_count += 1
+                session.total_tool_event_bytes += metric["bytes"]
+            elif observation.role == "machine_context":
+                session.machine_context_count += 1
+                session.total_machine_context_bytes += metric["bytes"]
+            elif observation.role == "request":
+                session.request_message_count += 1
+                session.total_request_bytes += metric["bytes"]
+                session.max_request_bytes = max(session.max_request_bytes, metric["bytes"])
+        for line_number, message in piece["errors"]:
+            errors.append({"path": str(path), "error": f"line {line_number}: {message}"})
+        if piece["errors"] and touched:
+            for session_id in touched:
+                sessions[session_id].parse_error_count += len(piece["errors"])
+        elif piece["errors"] and sessions and not touched:
+            for session in sessions.values():
+                if str(path) in session.source_files:
+                    session.parse_error_count += len(piece["errors"])
+        format_name = "JSON" if piece["kind"] == "summary" else "JSONL"
+        artifacts.append(
+            artifact(
+                artifact_id,
+                "Grok",
+                path,
+                "Sessions / Chats",
+                format_name,
+                exists=True,
+                parsed=True,
+                metadata={"size_bytes": path.stat().st_size, "parse_error_count": len(piece["errors"])},
+            )
+        )
+    return sessions, kept, artifacts, errors
+
+
+def _collect_grok_sessions(paths: list[Path], progress: AnalysisProgress | None = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    sessions, _, artifacts, errors = _parse_grok_files(paths, progress=progress)
+    session_rows = [session.to_output() for session in sessions.values()]
+    session_rows.sort(key=lambda item: (item["total_extracted_content_bytes"], item["raw_jsonl_bytes"]), reverse=True)
+    return session_rows, artifacts, errors
 
 
 def run_session_detail(
@@ -683,8 +1107,10 @@ def run_session_detail(
     claude_home_config: str | Path | None = None,
     cursor_root: str | Path | None = None,
     antigravity_cli_root: str | Path | None = None,
+    grok_root: str | Path | None = None,
     session_sources: Iterable[SessionSource] | None = None,
     input_root: str | Path | None = None,
+    progress_callback: ProgressCallback | None = None,
 ) -> dict[str, Any]:
     grouped_sources: dict[str, dict[str, list[Path]]] | None = None
     if session_sources is not None:
@@ -703,7 +1129,11 @@ def run_session_detail(
             claude_home_config=claude_home_config,
             cursor_root=cursor_root,
             antigravity_cli_root=antigravity_cli_root,
+            grok_root=grok_root,
         )
+    progress = AnalysisProgress(progress_callback)
+    total = sum(len(paths) for formats in grouped_sources.values() for paths in formats.values()) if grouped_sources is not None else None
+    progress.start("Parsing sessions", total)
     tools: list[dict[str, Any]] = []
     for tool_name, root, paths in (
         ("Codex", roots.target_root if grouped_sources and grouped_sources.get("Codex") else roots.codex_root,
@@ -714,7 +1144,7 @@ def run_session_detail(
         if not root:
             continue
         tool = tool_result(tool_name, root)
-        session_rows, artifacts, errors = _collect_sessions(tool_name, paths)
+        session_rows, artifacts, errors = _collect_sessions(tool_name, paths, progress=progress)
         if not paths:
             tool["artifacts"].append(artifact(f"{tool_name.lower().replace(' ', '_')}.session_detail", tool_name, root / "history.jsonl", "Sessions / Chats", "JSONL", exists=False, parsed=False))
         else:
@@ -728,8 +1158,8 @@ def run_session_detail(
         tool = tool_result("Cursor", cursor_root)
         chat_paths = _source_paths(grouped_sources, "Cursor", format_name="SQLite") if grouped_sources is not None else _cursor_chat_db_paths(cursor_root)
         transcript_paths = _source_paths(grouped_sources, "Cursor", format_name="JSONL") if grouped_sources is not None else _cursor_agent_transcript_paths(cursor_root)
-        chat_rows, chat_artifacts, chat_errors = _collect_cursor_sessions(chat_paths)
-        transcript_rows, transcript_artifacts, transcript_errors = _collect_cursor_agent_transcript_sessions(transcript_paths)
+        chat_rows, chat_artifacts, chat_errors = _collect_cursor_sessions(chat_paths, progress=progress)
+        transcript_rows, transcript_artifacts, transcript_errors = _collect_cursor_agent_transcript_sessions(transcript_paths, progress=progress)
         session_rows = sorted(chat_rows + transcript_rows, key=lambda item: (item["total_extracted_content_bytes"], item["raw_jsonl_bytes"]), reverse=True)
         if not chat_paths and not transcript_paths:
             tool["artifacts"].append(artifact("cursor.session_detail", "Cursor", cursor_root / "chats", "Sessions / Chats", "SQLite/JSONL", exists=False, parsed=False))
@@ -748,14 +1178,14 @@ def run_session_detail(
         tool = tool_result("Antigravity CLI", antigravity_root)
         paths = _source_paths(grouped_sources, "Antigravity CLI", format_name="JSONL") if grouped_sources is not None else _antigravity_cli_transcript_paths(antigravity_root)
         sqlite_paths = _source_paths(grouped_sources, "Antigravity CLI", format_name="SQLite") if grouped_sources is not None else []
-        session_rows, artifacts, errors = _collect_sessions("Antigravity CLI", paths)
+        session_rows, artifacts, errors = _collect_sessions("Antigravity CLI", paths, progress=progress)
         if not paths and not sqlite_paths:
             tool["artifacts"].append(
                 artifact("antigravity_cli.session_detail", "Antigravity CLI", antigravity_root / "brain", "Sessions / Chats", "JSONL", exists=False, parsed=False)
             )
         else:
             tool["artifacts"].extend(artifacts)
-        for index, path in enumerate(sqlite_paths):
+        for index, path in enumerate(progress.items(sqlite_paths)):
             try:
                 tool["artifacts"].append(artifact(f"antigravity_cli.session_sqlite.{index}", "Antigravity CLI", path, "Sessions / Chats", "SQLite", exists=True, parsed=True, metadata=_sqlite_schema_counts(path)))
             except Exception as exc:  # noqa: BLE001
@@ -773,6 +1203,19 @@ def run_session_detail(
             )
         )
         tools.append(tool)
+    grok_root_path = roots.target_root if grouped_sources and grouped_sources.get("Grok") else roots.grok_root
+    if grok_root_path:
+        tool = tool_result("Grok", grok_root_path)
+        paths = _source_paths(grouped_sources, "Grok") if grouped_sources is not None else _grok_chat_paths(grok_root_path)
+        session_rows, grok_artifacts, grok_errors = _collect_grok_sessions(paths, progress=progress)
+        if not paths:
+            tool["artifacts"].append(artifact("grok.session_detail", "Grok", grok_root_path / "sessions", "Sessions / Chats", "JSONL", exists=False, parsed=False))
+        else:
+            tool["artifacts"].extend(grok_artifacts)
+        tool["parse_errors"].extend(grok_errors)
+        aggregate = _session_aggregate(session_rows)
+        tool["findings"].append(finding("Grok", "grok.session_detail", "session_volume_structure", "Grok.sessions", {"aggregate": aggregate, "sessions": session_rows}))
+        tools.append(tool)
     summary = summarize_tools(tools)
     aggregates = [item["findings"][0]["value"]["aggregate"] for item in tools if item["findings"]]
     summary.update(
@@ -780,6 +1223,9 @@ def run_session_detail(
             "total_session_count": sum(item["session_count"] for item in aggregates),
             "total_request_message_count": sum(item["total_request_message_count"] for item in aggregates),
             "total_response_message_count": sum(item["total_response_message_count"] for item in aggregates),
+            "total_completed_turn_count": sum(item["total_completed_turn_count"] for item in aggregates),
+            "total_user_message_chunk_count": sum(item["total_user_message_chunk_count"] for item in aggregates),
+            "total_assistant_message_chunk_count": sum(item["total_assistant_message_chunk_count"] for item in aggregates),
             "total_machine_context_count": sum(item["total_machine_context_count"] for item in aggregates),
             "total_request_bytes": sum(item["total_request_bytes"] for item in aggregates),
             "total_response_bytes": sum(item["total_response_bytes"] for item in aggregates),
@@ -830,8 +1276,8 @@ INDICATOR_RULES = [
     IndicatorRule("network.host_port", "network_target", re.compile(r"\b(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*)\:(?:6553[0-5]|655[0-2]\d|65[0-4]\d{2}|6[0-4]\d{3}|[1-5]?\d{1,4})\b"), 4),
     IndicatorRule("network.ip_port", "network_target", re.compile(r"\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\:(?:6553[0-5]|655[0-2]\d|65[0-4]\d{2}|6[0-4]\d{3}|[1-5]?\d{1,4})\b"), 5),
     IndicatorRule("source_control.git_remote", "source_control", re.compile(r"\b(?:git@[\w.-]+:[^\s'\"<>]+\.git|ssh://(?:[^@\s]+@)?[\w.-]+(?::\d+)?/[^\s'\"<>]+\.git|https?://[\w.-]+/[^\s'\"<>]+\.git)\b", re.I), 4),
-    IndicatorRule("agent_fs.posix_agent_root", "agent_filesystem", re.compile(r"(?<![\w/.-])(?:~|\$HOME|/Users/[A-Za-z0-9._-]+|/home/[A-Za-z0-9._-]+)/(?:\.codex|\.claude|\.cursor|\.gemini/antigravity-cli)(?:/[^\s'\"<>)]{1,240})?", re.I), 3),
-    IndicatorRule("agent_fs.windows_agent_root", "agent_filesystem", re.compile(r"(?i)(?<![\w\\.-])(?:%USERPROFILE%|[A-Z]:\\Users\\[A-Za-z0-9._ -]+)\\(?:\.codex|\.claude|\.cursor|\.gemini\\antigravity-cli)(?:\\[^\s'\"<>)]{1,240})?"), 3),
+    IndicatorRule("agent_fs.posix_agent_root", "agent_filesystem", re.compile(r"(?<![\w/.-])(?:~|\$HOME|/Users/[A-Za-z0-9._-]+|/home/[A-Za-z0-9._-]+)/(?:\.codex|\.claude|\.cursor|\.gemini/antigravity-cli|\.grok)(?:/[^\s'\"<>)]{1,240})?", re.I), 3),
+    IndicatorRule("agent_fs.windows_agent_root", "agent_filesystem", re.compile(r"(?i)(?<![\w\\.-])(?:%USERPROFILE%|[A-Z]:\\Users\\[A-Za-z0-9._ -]+)\\(?:\.codex|\.claude|\.cursor|\.gemini\\antigravity-cli|\.grok)(?:\\[^\s'\"<>)]{1,240})?"), 3),
 ]
 
 
@@ -905,7 +1351,7 @@ def _valid_indicator_match(rule: IndicatorRule, value: str, context: str) -> boo
             return False
         return bool(re.search(r"(?i)\b(?:host|server|endpoint|url|ssh|vpn|bastion|jump|sso|ldap|domain|target)\b", context))
     if rule.rule_id.startswith("agent_fs."):
-        return bool(re.search(r"(?i)(?:\.codex|\.claude|\.cursor|antigravity-cli|agent-transcripts|session_index\.jsonl|history\.jsonl|sessions|projects)", clean))
+        return bool(re.search(r"(?i)(?:\.codex|\.claude|\.cursor|\.grok|antigravity-cli|agent-transcripts|session_index\.jsonl|history\.jsonl|sessions|projects)", clean))
     return True
 
 
@@ -1109,11 +1555,11 @@ def _high_value_aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def _cursor_high_value_rows(paths: list[Path]) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+def _cursor_high_value_rows(paths: list[Path], progress: AnalysisProgress | None = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     rows: list[dict[str, Any]] = []
     artifacts: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
-    for index, path in enumerate(paths):
+    for index, path in enumerate((progress or AnalysisProgress()).items(paths)):
         artifact_id = f"cursor.session_high_value.{index}"
         try:
             metadata, records, blob_count, malformed_blob_count, snapshot_opened = _cursor_store_records(path)
@@ -1242,11 +1688,11 @@ def _cursor_high_value_rows(paths: list[Path]) -> tuple[list[dict[str, Any]], li
     return rows, artifacts, errors
 
 
-def _cursor_agent_transcript_high_value_rows(paths: list[Path]) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+def _cursor_agent_transcript_high_value_rows(paths: list[Path], progress: AnalysisProgress | None = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     rows: list[dict[str, Any]] = []
     artifacts: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
-    for index, path in enumerate(paths):
+    for index, path in enumerate((progress or AnalysisProgress()).items(paths)):
         artifact_id = f"cursor.agent_transcript_high_value.{index}"
         parse_errors = 0
         session = {
@@ -1362,6 +1808,96 @@ def _cursor_agent_transcript_high_value_rows(paths: list[Path]) -> tuple[list[di
     return rows, artifacts, errors
 
 
+def _collect_grok_high_value(paths: list[Path], progress: AnalysisProgress | None = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    sessions, kept, artifacts, errors = _parse_grok_files(paths, artifact_prefix="grok.session_high_value")
+    session_map: dict[str, dict[str, Any]] = {}
+    for metric in sessions.values():
+        session_map[metric.session_id] = {
+            "tool": "Grok",
+            "session_id": metric.session_id,
+            "primary_source_path": sorted(metric.source_files)[0] if metric.source_files else None,
+            "source_files": set(metric.source_files),
+            "first_timestamp": metric.first_timestamp,
+            "last_timestamp": metric.last_timestamp,
+            "project_or_cwd": set(metric.project_or_cwd),
+            "session_title": metric.session_title,
+            "line_count": metric.line_count,
+            "parse_error_count": metric.parse_error_count,
+            "scanned_fragment_count": 0,
+            "scanned_text_bytes": 0,
+            "request_fragment_count": 0,
+            "response_fragment_count": 0,
+            "tool_event_fragment_count": 0,
+            "machine_context_fragment_count": 0,
+            "high_value_score": 0,
+            "category_counts": Counter(),
+            "rule_counts": Counter(),
+            "indicators": {},
+            "title_updated_at": metric.title_updated_at,
+        }
+    for session_id, observations in kept.items():
+        session = session_map[session_id]
+        for observation in observations:
+            if observation.role is None:
+                continue
+            for text in observation.texts:
+                if not text:
+                    continue
+                session["scanned_fragment_count"] += 1
+                session["scanned_text_bytes"] += len(text.encode("utf-8"))
+                session[_fragment_count_key(observation.role)] += 1
+                for rule in INDICATOR_RULES:
+                    for match in rule.pattern.finditer(text):
+                        value = match.group(0)
+                        context_start = max(0, match.start() - 80)
+                        context_end = min(len(text), match.end() + 80)
+                        if not _valid_indicator_match(rule, value, text[context_start:context_end]):
+                            continue
+                        _record_indicator_match(session, rule, value, "content", observation.role)
+    rows = []
+    for session in session_map.values():
+        indicators = _serialized_indicators(session)
+        rows.append(
+            {
+                "tool": session["tool"],
+                "session_id": session["session_id"],
+                "primary_source_path": session["primary_source_path"],
+                "source_file_count": len(session["source_files"]),
+                "first_timestamp": session["first_timestamp"],
+                "last_timestamp": session["last_timestamp"],
+                "primary_project_or_cwd": sorted(session["project_or_cwd"])[0] if session["project_or_cwd"] else None,
+                "project_or_cwd_count": len(session["project_or_cwd"]),
+                "title_present": session["session_title"] is not None,
+                "session_title": session["session_title"],
+                "title_length": len(session["session_title"]) if session["session_title"] else None,
+                "title_sha256": sha256_text(session["session_title"]),
+                "title_updated_at": session["title_updated_at"],
+                "line_count": session["line_count"],
+                "parse_error_count": session["parse_error_count"],
+                "scanned_fragment_count": session["scanned_fragment_count"],
+                "scanned_text_bytes": session["scanned_text_bytes"],
+                "request_fragment_count": session["request_fragment_count"],
+                "response_fragment_count": session["response_fragment_count"],
+                "tool_event_fragment_count": session["tool_event_fragment_count"],
+                "machine_context_fragment_count": session["machine_context_fragment_count"],
+                "high_value_score": session["high_value_score"],
+                "unique_high_value_score": _unique_high_value_score(indicators),
+                "risk_labels": _risk_labels(session["category_counts"]),
+                "category_counts": [{"category": key, "count": value} for key, value in sorted(session["category_counts"].items())],
+                "rule_counts": [{"rule_id": key, "count": value} for key, value in sorted(session["rule_counts"].items())],
+                "indicator_count": len(indicators),
+                "unique_indicator_count": len(indicators),
+                "unique_category_counts": _unique_category_counts(indicators),
+                "severity_bucket_counts": _severity_bucket_counts(indicators),
+                "indicators": indicators,
+            }
+        )
+    rows.sort(key=lambda item: (item["high_value_score"], item["indicator_count"]), reverse=True)
+    if progress is not None:
+        progress.advance(len(paths))
+    return rows, artifacts, errors
+
+
 def run_session_high_value(
     *,
     run_id: str,
@@ -1375,8 +1911,10 @@ def run_session_high_value(
     claude_home_config: str | Path | None = None,
     cursor_root: str | Path | None = None,
     antigravity_cli_root: str | Path | None = None,
+    grok_root: str | Path | None = None,
     session_sources: Iterable[SessionSource] | None = None,
     input_root: str | Path | None = None,
+    progress_callback: ProgressCallback | None = None,
 ) -> dict[str, Any]:
     grouped_sources: dict[str, dict[str, list[Path]]] | None = None
     if session_sources is not None:
@@ -1395,7 +1933,11 @@ def run_session_high_value(
             claude_home_config=claude_home_config,
             cursor_root=cursor_root,
             antigravity_cli_root=antigravity_cli_root,
+            grok_root=grok_root,
         )
+    progress = AnalysisProgress(progress_callback)
+    total = sum(len(paths) for formats in grouped_sources.values() for paths in formats.values()) if grouped_sources is not None else None
+    progress.start("Scanning indicators", total)
     tools: list[dict[str, Any]] = []
     for detail_tool, root, paths in (
         ("Codex", roots.target_root if grouped_sources and grouped_sources.get("Codex") else roots.codex_root,
@@ -1412,7 +1954,7 @@ def run_session_high_value(
             continue
         tool = tool_result(detail_tool, root)
         session_map: dict[str, dict[str, Any]] = {}
-        for path in paths:
+        for path in progress.items(paths):
             artifact_id = f"{detail_tool.lower().replace(' ', '_')}.session_high_value.{len(tool['artifacts'])}"
             parse_errors = 0
             source_session_id = _codex_rollout_session_id(path) if detail_tool == "Codex" else None
@@ -1544,7 +2086,7 @@ def run_session_high_value(
         rows.sort(key=lambda item: (item["high_value_score"], item["indicator_count"]), reverse=True)
         aggregate = _high_value_aggregate(rows)
         if detail_tool == "Antigravity CLI" and grouped_sources is not None:
-            for index, sqlite_path in enumerate(_source_paths(grouped_sources, "Antigravity CLI", format_name="SQLite")):
+            for index, sqlite_path in enumerate(progress.items(_source_paths(grouped_sources, "Antigravity CLI", format_name="SQLite"))):
                 try:
                     tool["artifacts"].append(artifact(f"antigravity_cli.session_high_value.sqlite.{index}", detail_tool, sqlite_path, "Sessions / Chats", "SQLite", exists=True, parsed=True, metadata=_sqlite_schema_counts(sqlite_path)))
                 except Exception as exc:  # noqa: BLE001
@@ -1557,8 +2099,8 @@ def run_session_high_value(
         tool = tool_result("Cursor", cursor_root)
         chat_paths = _source_paths(grouped_sources, "Cursor", format_name="SQLite") if grouped_sources is not None else _cursor_chat_db_paths(cursor_root)
         transcript_paths = _source_paths(grouped_sources, "Cursor", format_name="JSONL") if grouped_sources is not None else _cursor_agent_transcript_paths(cursor_root)
-        chat_rows, chat_artifacts, chat_errors = _cursor_high_value_rows(chat_paths)
-        transcript_rows, transcript_artifacts, transcript_errors = _cursor_agent_transcript_high_value_rows(transcript_paths)
+        chat_rows, chat_artifacts, chat_errors = _cursor_high_value_rows(chat_paths, progress=progress)
+        transcript_rows, transcript_artifacts, transcript_errors = _cursor_agent_transcript_high_value_rows(transcript_paths, progress=progress)
         rows = sorted(chat_rows + transcript_rows, key=lambda item: (item["high_value_score"], item["indicator_count"]), reverse=True)
         if not chat_paths and not transcript_paths:
             tool["artifacts"].append(artifact("cursor.session_high_value", "Cursor", cursor_root / "chats", "Sessions / Chats", "SQLite/JSONL", exists=False, parsed=False))
@@ -1571,6 +2113,19 @@ def run_session_high_value(
         tool["findings"].append(
             finding("Cursor", "cursor.session_high_value", "session_high_value_indicators", "Cursor.sessions", {"aggregate": aggregate, "sessions": rows})
         )
+        tools.append(tool)
+    grok_root_path = roots.target_root if grouped_sources and grouped_sources.get("Grok") else roots.grok_root
+    if grok_root_path:
+        tool = tool_result("Grok", grok_root_path)
+        paths = _source_paths(grouped_sources, "Grok") if grouped_sources is not None else _grok_chat_paths(grok_root_path)
+        rows, grok_artifacts, grok_errors = _collect_grok_high_value(paths, progress=progress)
+        if not paths:
+            tool["artifacts"].append(artifact("grok.session_high_value", "Grok", grok_root_path / "sessions", "Sessions / Chats", "JSONL", exists=False, parsed=False))
+        else:
+            tool["artifacts"].extend(grok_artifacts)
+        tool["parse_errors"].extend(grok_errors)
+        aggregate = _high_value_aggregate(rows)
+        tool["findings"].append(finding("Grok", "grok.session_high_value", "session_high_value_indicators", "Grok.sessions", {"aggregate": aggregate, "sessions": rows}))
         tools.append(tool)
     summary = summarize_tools(tools)
     aggregates = [item["findings"][0]["value"]["aggregate"] for item in tools if item["findings"]]
@@ -1639,6 +2194,10 @@ def _best_session_source_from_paths(session_id: str, paths: list[str]) -> str | 
             return str(candidate.resolve())
     for path in preferred_paths:
         candidate = Path(path)
+        if candidate.name.lower() == "updates.jsonl":
+            return str(candidate.resolve())
+    for path in preferred_paths:
+        candidate = Path(path)
         if candidate.suffix.lower() == ".jsonl" and candidate.parent.name == session_id:
             return str(candidate.resolve())
     non_aggregate_jsonl = [
@@ -1690,6 +2249,8 @@ def _normalized_tool_name(tool_name: str) -> str:
         return "cursor"
     if tool_name == "Antigravity CLI":
         return "antigravity_cli"
+    if tool_name == "Grok":
+        return "grok"
     return safe_name(tool_name).lower()
 
 
@@ -1728,6 +2289,11 @@ def _session_targeting_rows(session_detail_result: dict[str, Any]) -> list[dict[
                         "project_worktree_path": session.get("primary_project_or_cwd"),
                         "request_count": int(session.get("request_message_count") or 0),
                         "response_count": int(session.get("response_message_count") or 0),
+                        **({
+                            "completed_turn_count": int(session.get("completed_turn_count") or 0),
+                            "user_message_chunk_count": int(session.get("user_message_chunk_count") or 0),
+                            "assistant_message_chunk_count": int(session.get("assistant_message_chunk_count") or 0),
+                        } if tool_name == "Grok" else {}),
                         "captured_request_bytes": int(session.get("total_request_bytes") or 0),
                         "captured_response_bytes": int(session.get("total_response_bytes") or 0),
                         "captured_tool_event_bytes": int(session.get("total_tool_event_bytes") or 0),
@@ -1896,6 +2462,7 @@ def run_session_targeting_report(
     claude_home_config: str | Path | None = None,
     cursor_root: str | Path | None = None,
     antigravity_cli_root: str | Path | None = None,
+    grok_root: str | Path | None = None,
 ) -> dict[str, Any]:
     session_detail = run_session_detail(
         run_id=run_id,
@@ -1909,6 +2476,7 @@ def run_session_targeting_report(
         claude_home_config=claude_home_config,
         cursor_root=cursor_root,
         antigravity_cli_root=antigravity_cli_root,
+        grok_root=grok_root,
     )
     result = build_session_targeting_report({"session_detail": session_detail})
     return _write_session_targeting_outputs(

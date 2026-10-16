@@ -95,6 +95,43 @@ int bl_loader_filter_tool(const char *value, int value_len, const char **canonic
         }
         return 1;
     }
+    if (bl_ascii_equal_n(value, value_len, "devin") ||
+        bl_ascii_equal_n(value, value_len, "devin-cli")) {
+        if (canonical) {
+            *canonical = "devin";
+        }
+        return 1;
+    }
+    if (bl_ascii_equal_n(value, value_len, "strands") ||
+        bl_ascii_equal_n(value, value_len, "strands-cli") ||
+        bl_ascii_equal_n(value, value_len, "strands-agents")) {
+        if (canonical) {
+            *canonical = "strands";
+        }
+        return 1;
+    }
+    if (bl_ascii_equal_n(value, value_len, "kiro") ||
+        bl_ascii_equal_n(value, value_len, "kiro-cli")) {
+        if (canonical) {
+            *canonical = "kiro";
+        }
+        return 1;
+    }
+    if (bl_ascii_equal_n(value, value_len, "opencode") ||
+        bl_ascii_equal_n(value, value_len, "opencode-ai")) {
+        if (canonical) {
+            *canonical = "opencode";
+        }
+        return 1;
+    }
+    if (bl_ascii_equal_n(value, value_len, "muse_code") ||
+        bl_ascii_equal_n(value, value_len, "muse") ||
+        bl_ascii_equal_n(value, value_len, "muse-code")) {
+        if (canonical) {
+            *canonical = "muse_code";
+        }
+        return 1;
+    }
     if (bl_ascii_equal_n(value, value_len, "antigravity") ||
         bl_ascii_equal_n(value, value_len, "antigravity_cli") ||
         bl_ascii_equal_n(value, value_len, "antigravity-cli") ||
@@ -127,6 +164,28 @@ static int bl_tool_filter_matches(const char *csv, int csv_len, const char *tool
     }
     if (bl_ascii_equals(tool, "grok") &&
         bl_csv_contains_token(csv, csv_len, "grok-cli")) {
+        return 1;
+    }
+    if (bl_ascii_equals(tool, "devin") &&
+        bl_csv_contains_token(csv, csv_len, "devin-cli")) {
+        return 1;
+    }
+    if (bl_ascii_equals(tool, "strands") &&
+        (bl_csv_contains_token(csv, csv_len, "strands-cli") ||
+         bl_csv_contains_token(csv, csv_len, "strands-agents"))) {
+        return 1;
+    }
+    if (bl_ascii_equals(tool, "kiro") &&
+        bl_csv_contains_token(csv, csv_len, "kiro-cli")) {
+        return 1;
+    }
+    if (bl_ascii_equals(tool, "opencode") &&
+        bl_csv_contains_token(csv, csv_len, "opencode-ai")) {
+        return 1;
+    }
+    if (bl_ascii_equals(tool, "muse_code") &&
+        (bl_csv_contains_token(csv, csv_len, "muse") ||
+         bl_csv_contains_token(csv, csv_len, "muse-code"))) {
         return 1;
     }
     return 0;

@@ -32,7 +32,24 @@ targets(tool, family, relative_path) AS (
     ('grok', 'sessions', '/.grok/sessions/session_search.sqlite'),
     ('grok', 'workspace', '/.grok/memory-v2'),
     ('grok', 'plugins', '/.grok/installed-plugins'),
-    ('grok', 'worktrees', '/.grok/worktrees.db')
+    ('grok', 'worktrees', '/.grok/worktrees.db'),
+    ('devin', 'auth', '/.local/share/devin/credentials.toml'),
+    ('devin', 'config', '/.config/devin'),
+    ('strands', 'config', '/.strands/cli/config.json'),
+    ('strands', 'sessions', '/.strands/cli/session-roots.json'),
+    ('kiro', 'auth', '/.local/share/kiro-cli/data.sqlite3'),
+    ('kiro', 'config', '/.kiro/settings/cli.json'),
+    ('kiro', 'mcp', '/.kiro/settings/mcp.json'),
+    ('kiro', 'auth', '/.local/share/amazon-q/data.sqlite3'),
+    ('kiro', 'mcp', '/.aws/amazonq/mcp.json'),
+    ('opencode', 'auth', '/.local/share/opencode/auth.json'),
+    ('opencode', 'auth', '/.local/share/opencode/opencode.db'),
+    ('opencode', 'config', '/.config/opencode/opencode.json'),
+    ('opencode', 'config', '/.config/opencode/cli.json'),
+    ('muse_code', 'auth', '/.config/muse/auth.json'),
+    ('muse_code', 'config', '/.config/muse/settings.json'),
+    ('muse_code', 'config', '/.config/muse/trust.json'),
+    ('muse_code', 'sessions', '/.local/share/muse/session-index.db')
 )
 SELECT
   targets.tool,

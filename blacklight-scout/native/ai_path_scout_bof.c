@@ -21,7 +21,7 @@
 #define MAX_BOF_TRIAGE_TARGETS 256
 #define BOF_SESSION_SCAN_LIMIT 10000
 #define BOF_SESSION_SCAN_MAX_DEPTH 32
-#define BOF_SESSION_TOOL_COUNT 5
+#define BOF_SESSION_TOOL_COUNT 10
 #define BOF_TOP_SESSIONS_PER_TOOL 3
 #define BOF_TOP_SESSION_COUNT (BOF_SESSION_TOOL_COUNT * BOF_TOP_SESSIONS_PER_TOOL)
 #define BOF_DYNAMIC_DISCOVERY_LIMIT 5000
@@ -368,6 +368,11 @@ static int session_tool_slot(const char *tool) {
     if (ascii_equal_n_ci(tool, length, "cursor")) return 2;
     if (ascii_equal_n_ci(tool, length, "antigravity_cli")) return 3;
     if (ascii_equal_n_ci(tool, length, "grok")) return 4;
+    if (ascii_equal_n_ci(tool, length, "devin")) return 5;
+    if (ascii_equal_n_ci(tool, length, "strands")) return 6;
+    if (ascii_equal_n_ci(tool, length, "kiro")) return 7;
+    if (ascii_equal_n_ci(tool, length, "opencode")) return 8;
+    if (ascii_equal_n_ci(tool, length, "muse_code")) return 9;
     return -1;
 }
 

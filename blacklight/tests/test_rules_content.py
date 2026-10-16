@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import sqlite3
 import unittest
 from pathlib import Path
 
@@ -21,6 +22,30 @@ class BlacklightRulesContentTests(unittest.TestCase):
             for item in self.scout_catalog["platforms"]["windows"]["targets"]
         }
         self.assertEqual(set(), scout_paths - catalog_paths)
+
+    def test_rules_sql_compiles(self) -> None:
+        # Compile against table stubs without querying a live endpoint.
+        connection = sqlite3.connect(":memory:")
+        self.addCleanup(connection.close)
+        connection.executescript(
+            "CREATE TABLE users(username, directory);"
+            "CREATE TABLE os_version(platform);"
+            "CREATE TABLE file(path, type, uid, gid, mode, size, mtime);"
+            "CREATE TABLE file_events(category);"
+            "CREATE TABLE es_process_file_events(dummy);"
+        )
+        queries = {
+            str(path.relative_to(self.rules_root)): path.read_text(encoding="utf-8")
+            for path in (self.rules_root / "inventory").glob("*.sql")
+        }
+        for path in (self.rules_root / "detection").rglob("*.conf"):
+            config = json.loads(path.read_text(encoding="utf-8"))
+            for name, scheduled in config.get("schedule", {}).items():
+                queries[f"{path.relative_to(self.rules_root)}:{name}"] = scheduled["query"]
+        self.assertTrue(queries)
+        for name, query in queries.items():
+            with self.subTest(query=name):
+                connection.execute("EXPLAIN " + query).fetchall()
 
     def test_catalog_evidence_references_resolve(self) -> None:
         self.assertEqual("blacklight.rules.catalog.v2", self.catalog["schema_version"])
@@ -47,6 +72,65 @@ class BlacklightRulesContentTests(unittest.TestCase):
                 self.assertNotIn("blacklight.analyze.run_session_detail", item["confirmed_by"])
         self.assertIn("\\.grok", self.catalog["detection_boundaries"]["windows_roots"])
         self.assertIn("/.grok", self.catalog["detection_boundaries"]["posix_roots"])
+
+    def test_devin_and_strands_catalog_is_recon_only_and_detection_covered(self) -> None:
+        for tool in ("devin", "strands"):
+            artifacts = [item for item in self.catalog["artifacts"] if item["tool"] == tool]
+            self.assertTrue(artifacts, tool)
+            for item in artifacts:
+                with self.subTest(artifact=item["id"]):
+                    self.assertEqual(item["assessment_coverage"], "explicitly_assessed")
+                    self.assertNotIn("blacklight.analyze.run_session_detail", item["confirmed_by"])
+        windows_roots = self.catalog["detection_boundaries"]["windows_roots"]
+        posix_roots = self.catalog["detection_boundaries"]["posix_roots"]
+        self.assertIn("\\.strands", windows_roots)
+        self.assertIn("/.strands", posix_roots)
+        self.assertIn("\\.local\\share\\devin", windows_roots)
+        self.assertIn("/.local/share/devin", posix_roots)
+        self.assertIn("\\AppData\\Local\\devin", windows_roots)
+
+    def test_kiro_and_opencode_catalog_is_recon_only_and_detection_covered(self) -> None:
+        for tool in ("kiro", "opencode"):
+            artifacts = [item for item in self.catalog["artifacts"] if item["tool"] == tool]
+            self.assertTrue(artifacts, tool)
+            for item in artifacts:
+                with self.subTest(artifact=item["id"]):
+                    self.assertEqual(item["assessment_coverage"], "explicitly_assessed")
+                    self.assertNotIn("blacklight.analyze.run_session_detail", item["confirmed_by"])
+        windows_roots = self.catalog["detection_boundaries"]["windows_roots"]
+        posix_roots = self.catalog["detection_boundaries"]["posix_roots"]
+        self.assertIn("\\.kiro", windows_roots)
+        self.assertIn("/.kiro", posix_roots)
+        self.assertIn("\\.local\\share\\kiro-cli", windows_roots)
+        self.assertIn("/.local/share/kiro-cli", posix_roots)
+        self.assertIn("\\.opencode", windows_roots)
+        self.assertIn("/.opencode", posix_roots)
+        self.assertIn("\\.local\\share\\opencode", windows_roots)
+        self.assertIn("/.local/share/opencode", posix_roots)
+        self.assertIn("\\.config\\opencode", windows_roots)
+        self.assertIn("/.config/opencode", posix_roots)
+
+    def test_muse_code_catalog_is_recon_only_and_detection_covered(self) -> None:
+        artifacts = [item for item in self.catalog["artifacts"] if item["tool"] == "muse_code"]
+        self.assertTrue(artifacts)
+        for item in artifacts:
+            with self.subTest(artifact=item["id"]):
+                self.assertEqual(item["assessment_coverage"], "explicitly_assessed")
+                self.assertNotIn("blacklight.analyze.run_session_detail", item["confirmed_by"])
+        windows_roots = self.catalog["detection_boundaries"]["windows_roots"]
+        posix_roots = self.catalog["detection_boundaries"]["posix_roots"]
+        self.assertIn("\\.config\\muse", windows_roots)
+        self.assertIn("/.config/muse", posix_roots)
+        self.assertIn("\\.local\\share\\muse", windows_roots)
+        self.assertIn("/.local/share/muse", posix_roots)
+        self.assertIn("\\.muse", windows_roots)
+        self.assertIn("/.muse", posix_roots)
+        self.assertIn("\\AppData\\Local\\Programs\\muse", windows_roots)
+        self.assertIn("/AppData/Local/Programs/muse", posix_roots)
+        telemetry = (self.rules_root / "detection" / "windows" / "telemetry.md").read_text(encoding="utf-8")
+        self.assertIn("muse_code", telemetry)
+        self.assertIn("\\\\[.]config\\\\muse", telemetry)
+        self.assertIn("appdata\\\\local\\\\programs\\\\muse", telemetry)
 
     def test_scout_and_rules_families_align_for_windows_targets(self) -> None:
         catalog_by_path = {item["relative_path"]: item["family"] for item in self.catalog["artifacts"]}

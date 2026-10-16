@@ -4,7 +4,7 @@
 
 # Blacklight
 
-Blacklight has two separate phases: **Scout** performs endpoint triage for Codex, Claude Code, Cursor, Antigravity CLI, and Grok; **Session Analysis** parses selected Codex, Claude Code, Cursor, and Antigravity CLI downloads.
+Blacklight has two separate phases: **Scout** performs endpoint triage for Codex, Claude Code, Cursor, Antigravity CLI, Grok, Devin CLI, Strands Agents, Kiro CLI, OpenCode, and Muse Code; **Session Analysis** parses selected Codex, Claude Code, Cursor, Antigravity CLI, and Grok chat artifacts. Scout still does not read Grok auth, memory, logs, terminal logs, or session bodies.
 
 ## Workflow
 
@@ -25,7 +25,7 @@ Blacklight has two separate phases: **Scout** performs endpoint triage for Codex
 
 ## Phase 1: Scout the endpoint
 
-Scout performs bounded metadata and filesystem triage. It identifies configuration, rules, authentication metadata, and candidate session paths, but does not read session bodies or print credential/configuration values. 
+Scout performs bounded metadata and filesystem triage. It identifies configuration, rules, authentication metadata, and candidate session paths, but does not read session bodies or print credential/configuration values. Grok reconnaissance covers actionable paths under `.grok`, including auth, config, session state, memory, plugins, skills, logs, and worktree state. Devin CLI, Strands Agents, Kiro CLI, OpenCode, and Muse Code coverage is existence and path enumeration only for known install, config, auth, cache, log, and session-root locations. See the [agent and CLI collection matrix](docs/matrix.md) for full catalog coverage.
 
 ### Build Scout
 
@@ -78,7 +78,7 @@ If `blacklight` is not on `PATH`, use `python3.11 -m blacklight`.
 
 Run the CLI against any local directory containing selected JSONL or SQLite artifacts. Files may be flat, nested, renamed, or duplicated when their content has a recognized schema.
 
-Grok artifacts are not yet supported by Session Analysis. Use Scout and Rules for metadata-only Grok reconnaissance; do not expect `blacklight sessions` to parse Grok files in this release.
+Session Analysis parses selected Grok chat artifacts: ACP session updates, chat history, prompt history, and session summaries. Other `.grok/sessions` files, including usage, state, events, logs, and the search database, are recorded as skipped non-session files. Use Scout and Rules for reconnaissance of other Grok paths.
 
 Scout ranks session artifacts by newest activity and size, and reports the recognized artifact volume. For a fast review, download the selected ranked JSONL/SQLite artifacts intact; use the reported total to decide whether to collect more. Scout output and reconstructed endpoint paths are not required: any selected local directory can be analyzed.
 
@@ -89,17 +89,22 @@ blacklight sessions ~/Downloads/HOST-001 \
   --max-files 10000
 ```
 
-Use `--tool <codex|claude|cursor|antigravity_cli>` only to resolve ambiguous evidence. Use `--include`, `--exclude`, `--max-files`, and `--max-file-size` to limit scope. Add `--json` for a machine-readable terminal summary.
+To analyze known Codex, Claude, Cursor, Antigravity, and Grok session roots in the current user's home directory, run `python3.11 -m blacklight sessions local`. Omitting `local` does the same. This mode skips unrelated home files, including extensions, caches, and logs. An explicit directory or file path retains broad schema discovery.
 
-Each run writes a `<RUN_ID>_Session_Report.json` and matching `.txt` report. They include parse health, ranked sessions, activity and response-capture metrics, redacted high-value indicator metadata, and exact source-file paths for deeper review. Blacklight does not run external secret scanners; pass selected source files to your approved workflow.
+In local mode, `--tool <codex|claude|cursor|antigravity_cli|grok|grok-cli>` selects that tool's session root. With an explicit path, it remains a detection hint and does not override a conflicting schema. Use `--include`, `--exclude`, `--max-files`, and `--max-file-size` to limit scope. In local mode, `--max-files` counts selected session candidates; with an explicit directory, it retains the encountered-file limit. Add `--json` for a machine-readable terminal summary.
 
-Review partial, unsupported, ambiguous, and failed input records in the report inventory. A file-limit result means discovery was intentionally bounded; it does not stop supported files from being analyzed.
+Interactive runs show the current phase, a progress bar with processed/total files when known, and elapsed time. Discovery and report writing use an activity indicator; it keeps moving while a large file is being processed. File counts reset for each phase, and Grok indicator scanning advances after its cross-file deduplication and scanning batch finishes. Progress goes to stderr, so `--json` stdout stays machine-readable. Use `--no-progress` to disable the display; redirecting stderr also suppresses it.
+
+Each run writes a `<RUN_ID>_Session_Report.json` and matching `.txt` report. The text report summarizes coverage, warnings, and the top five sessions per detected tool; the JSON keeps that top selection plus the full ranked sessions, artifact inventory, skipped paths, scanner targets, and redacted indicator metadata. `files_examined` counts encountered files; `session_candidates_examined` counts files considered for parsing. Grok ACP reports logical message counts, completed turns, and raw chunk counts separately. Blacklight does not run external secret scanners; pass selected source files to your approved workflow.
+
+Review skipped, partial, unsupported, ambiguous, and failed input records in the JSON inventory. A file-limit result means discovery was intentionally bounded; it does not stop supported files from being analyzed.
 
 ## Documentation
 
 | Guide | When to use it |
 | --- | --- |
 | [Architecture](docs/architecture.md) | Boundaries, data flow, and parsing limits. |
+| [Agent and CLI collection matrix](docs/matrix.md) | Catalog-generated agent, platform, artifact-family, and collection coverage. |
 | [Defender Rules](blacklight-rules/README.md) | Inventory, exposure review, and detections. |
 
 ## Research and contributions

@@ -24,7 +24,7 @@ static int g_auto_select_count = 0;
 #define BL_MAX_OPERATOR_TARGETS 256
 #define BL_SESSION_SCAN_LIMIT 10000
 #define BL_SESSION_SCAN_MAX_DEPTH 32
-#define BL_SESSION_TOOL_COUNT 5
+#define BL_SESSION_TOOL_COUNT 10
 #define BL_TOP_SESSIONS_PER_TOOL 3
 #define BL_TOP_SESSION_COUNT (BL_SESSION_TOOL_COUNT * BL_TOP_SESSIONS_PER_TOOL)
 #define BL_DYNAMIC_DISCOVERY_LIMIT 5000
@@ -339,6 +339,11 @@ static int session_tool_slot(const char *tool) {
     if (strcmp(tool, "cursor") == 0) return 2;
     if (strcmp(tool, "antigravity_cli") == 0) return 3;
     if (strcmp(tool, "grok") == 0) return 4;
+    if (strcmp(tool, "devin") == 0) return 5;
+    if (strcmp(tool, "strands") == 0) return 6;
+    if (strcmp(tool, "kiro") == 0) return 7;
+    if (strcmp(tool, "opencode") == 0) return 8;
+    if (strcmp(tool, "muse_code") == 0) return 9;
     return -1;
 }
 

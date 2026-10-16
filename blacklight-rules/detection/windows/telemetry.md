@@ -128,6 +128,27 @@ Monitored roots:
 - `\.cursor`
 - `\.gemini\antigravity-cli`
 - `\.grok`
+- `\.local\share\devin`
+- `\.config\devin`
+- `\AppData\Local\devin`
+- `\.strands`
+- `\.kiro`
+- `\.local\share\kiro-cli`
+- `\AppData\Roaming\kiro-cli`
+- `\AppData\Local\kiro-cli`
+- `\AppData\Local\Kiro-Cli`
+- `\.local\share\amazon-q`
+- `\.aws\amazonq`
+- `\AppData\Local\amazon-q`
+- `\.opencode`
+- `\.local\share\opencode`
+- `\.config\opencode`
+- `\.cache\opencode`
+- `\.local\state\opencode`
+- `\.config\muse`
+- `\.local\share\muse`
+- `\.muse`
+- `\AppData\Local\Programs\muse`
 - `\.claude.json`
 
 Expected reads by the owning AI client, approved backup or indexing tools, and
@@ -145,8 +166,24 @@ query coalesces common names and falls back to `_raw` for the access token.
 | eval object_name=lower(coalesce(ObjectName,Object_Name)), object_type=lower(coalesce(ObjectType,Object_Type)), process_name=coalesce(ProcessName,Process_Name), actor=coalesce(SubjectUserName,Account_Name,user), access_data=coalesce(AccessList,Accesses,_raw)
 | where object_type="file" AND isnotnull(object_name)
     AND (
-      match(object_name,"(?i)\\\\(?:[.]codex|[.]claude|[.]cursor|[.]grok)(?:\\\\|$)")
+      match(object_name,"(?i)\\\\(?:[.]codex|[.]claude|[.]cursor|[.]grok|[.]strands|[.]kiro|[.]opencode|[.]muse)(?:\\\\|$)")
       OR match(object_name,"(?i)\\\\[.]gemini\\\\antigravity-cli(?:\\\\|$)")
+      OR match(object_name,"(?i)\\\\[.]local\\\\share\\\\devin(?:\\\\|$)")
+      OR match(object_name,"(?i)\\\\[.]config\\\\devin(?:\\\\|$)")
+      OR match(object_name,"(?i)\\\\appdata\\\\local\\\\devin(?:\\\\|$)")
+      OR match(object_name,"(?i)\\\\[.]local\\\\share\\\\kiro-cli(?:\\\\|$)")
+      OR match(object_name,"(?i)\\\\appdata\\\\roaming\\\\kiro-cli(?:\\\\|$)")
+      OR match(object_name,"(?i)\\\\appdata\\\\local\\\\kiro-cli(?:\\\\|$)")
+      OR match(object_name,"(?i)\\\\[.]local\\\\share\\\\amazon-q(?:\\\\|$)")
+      OR match(object_name,"(?i)\\\\[.]aws\\\\amazonq(?:\\\\|$)")
+      OR match(object_name,"(?i)\\\\appdata\\\\local\\\\amazon-q(?:\\\\|$)")
+      OR match(object_name,"(?i)\\\\[.]local\\\\share\\\\opencode(?:\\\\|$)")
+      OR match(object_name,"(?i)\\\\[.]config\\\\opencode(?:\\\\|$)")
+      OR match(object_name,"(?i)\\\\[.]cache\\\\opencode(?:\\\\|$)")
+      OR match(object_name,"(?i)\\\\[.]local\\\\state\\\\opencode(?:\\\\|$)")
+      OR match(object_name,"(?i)\\\\[.]local\\\\share\\\\muse(?:\\\\|$)")
+      OR match(object_name,"(?i)\\\\[.]config\\\\muse(?:\\\\|$)")
+      OR match(object_name,"(?i)\\\\appdata\\\\local\\\\programs\\\\muse(?:\\\\|$)")
       OR match(object_name,"(?i)\\\\[.]claude[.]json$")
     )
     AND (like(access_data,"%4416%") OR match(access_data,"(?i)ReadData|ListDirectory"))
@@ -156,6 +193,11 @@ query coalesces common names and falls back to `_raw` for the access token.
     match(object_name,"(?i)\\\\[.]cursor(?:\\\\|$)"),"cursor",
     match(object_name,"(?i)\\\\[.]gemini\\\\antigravity-cli(?:\\\\|$)"),"antigravity_cli",
     match(object_name,"(?i)\\\\[.]grok(?:\\\\|$)"),"grok",
+    match(object_name,"(?i)\\\\[.]strands(?:\\\\|$)"),"strands",
+    match(object_name,"(?i)\\\\(?:[.]local\\\\share\\\\devin|[.]config\\\\devin|appdata\\\\local\\\\devin)(?:\\\\|$)"),"devin",
+    match(object_name,"(?i)\\\\(?:[.]kiro|[.]local\\\\share\\\\kiro-cli|appdata\\\\(?:roaming|local)\\\\kiro-cli|[.]local\\\\share\\\\amazon-q|[.]aws\\\\amazonq|appdata\\\\local\\\\amazon-q)(?:\\\\|$)"),"kiro",
+    match(object_name,"(?i)\\\\(?:[.]opencode|[.]local\\\\share\\\\opencode|[.]config\\\\opencode|[.]cache\\\\opencode|[.]local\\\\state\\\\opencode)(?:\\\\|$)"),"opencode",
+    match(object_name,"(?i)\\\\(?:[.]muse|[.]local\\\\share\\\\muse|[.]config\\\\muse|appdata\\\\local\\\\programs\\\\muse)(?:\\\\|$)"),"muse_code",
     true(),"unknown"
   )
 | stats count min(_time) as first_seen max(_time) as last_seen values(process_name) as process_name values(access_data) as access_data by host actor object_name blacklight_tool
@@ -174,8 +216,24 @@ SecurityEvent
          process_name = tostring(ProcessName),
          actor = tostring(coalesce(Account, AccountName)),
          event_data = tostring(EventData)
-| where object_name matches regex @"\\(?:[.]codex|[.]claude|[.]cursor|[.]grok)(?:\\|$)"
+| where object_name matches regex @"\\(?:[.]codex|[.]claude|[.]cursor|[.]grok|[.]strands|[.]kiro|[.]opencode|[.]muse)(?:\\|$)"
     or object_name matches regex @"\\[.]gemini\\antigravity-cli(?:\\|$)"
+    or object_name matches regex @"\\[.]local\\share\\devin(?:\\|$)"
+    or object_name matches regex @"\\[.]config\\devin(?:\\|$)"
+    or object_name matches regex @"\\appdata\\local\\devin(?:\\|$)"
+    or object_name matches regex @"\\[.]local\\share\\kiro-cli(?:\\|$)"
+    or object_name matches regex @"\\appdata\\roaming\\kiro-cli(?:\\|$)"
+    or object_name matches regex @"\\appdata\\local\\kiro-cli(?:\\|$)"
+    or object_name matches regex @"\\[.]local\\share\\amazon-q(?:\\|$)"
+    or object_name matches regex @"\\[.]aws\\amazonq(?:\\|$)"
+    or object_name matches regex @"\\appdata\\local\\amazon-q(?:\\|$)"
+    or object_name matches regex @"\\[.]local\\share\\opencode(?:\\|$)"
+    or object_name matches regex @"\\[.]config\\opencode(?:\\|$)"
+    or object_name matches regex @"\\[.]cache\\opencode(?:\\|$)"
+    or object_name matches regex @"\\[.]local\\state\\opencode(?:\\|$)"
+    or object_name matches regex @"\\[.]local\\share\\muse(?:\\|$)"
+    or object_name matches regex @"\\[.]config\\muse(?:\\|$)"
+    or object_name matches regex @"\\appdata\\local\\programs\\muse(?:\\|$)"
     or object_name matches regex @"\\[.]claude[.]json$"
 | where event_data contains "%%4416"
 | extend blacklight_tool = case(
@@ -184,6 +242,11 @@ SecurityEvent
     object_name matches regex @"\\[.]cursor(?:\\|$)", "cursor",
     object_name matches regex @"\\[.]gemini\\antigravity-cli(?:\\|$)", "antigravity_cli",
     object_name matches regex @"\\[.]grok(?:\\|$)", "grok",
+    object_name matches regex @"\\[.]strands(?:\\|$)", "strands",
+    object_name matches regex @"\\(?:[.]local\\share\\devin|[.]config\\devin|appdata\\local\\devin)(?:\\|$)", "devin",
+    object_name matches regex @"\\(?:[.]kiro|[.]local\\share\\kiro-cli|appdata\\(?:roaming|local)\\kiro-cli|[.]local\\share\\amazon-q|[.]aws\\amazonq|appdata\\local\\amazon-q)(?:\\|$)", "kiro",
+    object_name matches regex @"\\(?:[.]opencode|[.]local\\share\\opencode|[.]config\\opencode|[.]cache\\opencode|[.]local\\state\\opencode)(?:\\|$)", "opencode",
+    object_name matches regex @"\\(?:[.]muse|[.]local\\share\\muse|[.]config\\muse|appdata\\local\\programs\\muse)(?:\\|$)", "muse_code",
     "unknown"
   )
 | project TimeGenerated, Computer, actor, process_name, object_name, AccessMask, blacklight_tool
@@ -214,6 +277,48 @@ winlog.event_data.AccessList: *%%4416* and
   winlog.event_data.ObjectName: *\\.cursor\\* or
   winlog.event_data.ObjectName: *\\.grok or
   winlog.event_data.ObjectName: *\\.grok\\* or
+  winlog.event_data.ObjectName: *\\.strands or
+  winlog.event_data.ObjectName: *\\.strands\\* or
+  winlog.event_data.ObjectName: *\\.kiro or
+  winlog.event_data.ObjectName: *\\.kiro\\* or
+  winlog.event_data.ObjectName: *\\.opencode or
+  winlog.event_data.ObjectName: *\\.opencode\\* or
+  winlog.event_data.ObjectName: *\\.local\\share\\devin or
+  winlog.event_data.ObjectName: *\\.local\\share\\devin\\* or
+  winlog.event_data.ObjectName: *\\.config\\devin or
+  winlog.event_data.ObjectName: *\\.config\\devin\\* or
+  winlog.event_data.ObjectName: *\\AppData\\Local\\devin or
+  winlog.event_data.ObjectName: *\\AppData\\Local\\devin\\* or
+  winlog.event_data.ObjectName: *\\.local\\share\\kiro-cli or
+  winlog.event_data.ObjectName: *\\.local\\share\\kiro-cli\\* or
+  winlog.event_data.ObjectName: *\\AppData\\Roaming\\kiro-cli or
+  winlog.event_data.ObjectName: *\\AppData\\Roaming\\kiro-cli\\* or
+  winlog.event_data.ObjectName: *\\AppData\\Local\\kiro-cli or
+  winlog.event_data.ObjectName: *\\AppData\\Local\\kiro-cli\\* or
+  winlog.event_data.ObjectName: *\\AppData\\Local\\Kiro-Cli or
+  winlog.event_data.ObjectName: *\\AppData\\Local\\Kiro-Cli\\* or
+  winlog.event_data.ObjectName: *\\.local\\share\\amazon-q or
+  winlog.event_data.ObjectName: *\\.local\\share\\amazon-q\\* or
+  winlog.event_data.ObjectName: *\\.aws\\amazonq or
+  winlog.event_data.ObjectName: *\\.aws\\amazonq\\* or
+  winlog.event_data.ObjectName: *\\AppData\\Local\\amazon-q or
+  winlog.event_data.ObjectName: *\\AppData\\Local\\amazon-q\\* or
+  winlog.event_data.ObjectName: *\\.local\\share\\opencode or
+  winlog.event_data.ObjectName: *\\.local\\share\\opencode\\* or
+  winlog.event_data.ObjectName: *\\.config\\opencode or
+  winlog.event_data.ObjectName: *\\.config\\opencode\\* or
+  winlog.event_data.ObjectName: *\\.cache\\opencode or
+  winlog.event_data.ObjectName: *\\.cache\\opencode\\* or
+  winlog.event_data.ObjectName: *\\.local\\state\\opencode or
+  winlog.event_data.ObjectName: *\\.local\\state\\opencode\\* or
+  winlog.event_data.ObjectName: *\\.muse or
+  winlog.event_data.ObjectName: *\\.muse\\* or
+  winlog.event_data.ObjectName: *\\.local\\share\\muse or
+  winlog.event_data.ObjectName: *\\.local\\share\\muse\\* or
+  winlog.event_data.ObjectName: *\\.config\\muse or
+  winlog.event_data.ObjectName: *\\.config\\muse\\* or
+  winlog.event_data.ObjectName: *\\AppData\\Local\\Programs\\muse or
+  winlog.event_data.ObjectName: *\\AppData\\Local\\Programs\\muse\\* or
   winlog.event_data.ObjectName: *\\.gemini\\antigravity-cli or
   winlog.event_data.ObjectName: *\\.gemini\\antigravity-cli\\*
 )
@@ -227,8 +332,24 @@ Data source: parser-normalized file events mapping actual reads or opens to UDM
 ```text
 (metadata.event_type = "FILE_READ" OR metadata.event_type = "FILE_OPEN")
 AND (
-  target.file.full_path = /\\(?:[.]codex|[.]claude|[.]cursor|[.]grok)(?:\\|$)/ NOCASE
+  target.file.full_path = /\\(?:[.]codex|[.]claude|[.]cursor|[.]grok|[.]strands|[.]kiro|[.]opencode|[.]muse)(?:\\|$)/ NOCASE
   OR target.file.full_path = /\\[.]gemini\\antigravity-cli(?:\\|$)/ NOCASE
+  OR target.file.full_path = /\\[.]local\\share\\devin(?:\\|$)/ NOCASE
+  OR target.file.full_path = /\\[.]config\\devin(?:\\|$)/ NOCASE
+  OR target.file.full_path = /\\[Aa]pp[Dd]ata\\[Ll]ocal\\devin(?:\\|$)/ NOCASE
+  OR target.file.full_path = /\\[.]local\\share\\kiro-cli(?:\\|$)/ NOCASE
+  OR target.file.full_path = /\\[Aa]pp[Dd]ata\\[Rr]oaming\\kiro-cli(?:\\|$)/ NOCASE
+  OR target.file.full_path = /\\[Aa]pp[Dd]ata\\[Ll]ocal\\[Kk]iro-[Cc]li(?:\\|$)/ NOCASE
+  OR target.file.full_path = /\\[.]local\\share\\amazon-q(?:\\|$)/ NOCASE
+  OR target.file.full_path = /\\[.]aws\\amazonq(?:\\|$)/ NOCASE
+  OR target.file.full_path = /\\[Aa]pp[Dd]ata\\[Ll]ocal\\amazon-q(?:\\|$)/ NOCASE
+  OR target.file.full_path = /\\[.]local\\share\\opencode(?:\\|$)/ NOCASE
+  OR target.file.full_path = /\\[.]config\\opencode(?:\\|$)/ NOCASE
+  OR target.file.full_path = /\\[.]cache\\opencode(?:\\|$)/ NOCASE
+  OR target.file.full_path = /\\[.]local\\state\\opencode(?:\\|$)/ NOCASE
+  OR target.file.full_path = /\\[.]local\\share\\muse(?:\\|$)/ NOCASE
+  OR target.file.full_path = /\\[.]config\\muse(?:\\|$)/ NOCASE
+  OR target.file.full_path = /\\[Aa]pp[Dd]ata\\[Ll]ocal\\[Pp]rograms\\muse(?:\\|$)/ NOCASE
   OR target.file.full_path = /\\[.]claude[.]json$/ NOCASE
 )
 ```
@@ -247,11 +368,27 @@ especially sensitive child files.
 ```kusto
 DeviceProcessEvents
 | extend command_line = tolower(ProcessCommandLine)
-| where command_line matches regex @"\\(?:[.]codex|[.]claude|[.]cursor|[.]grok)(?:\\|$|[\\\"' ])"
+| where command_line matches regex @"\\(?:[.]codex|[.]claude|[.]cursor|[.]grok|[.]strands|[.]kiro|[.]opencode|[.]muse)(?:\\|$|[\\\"' ])"
     or command_line matches regex @"\\[.]gemini\\antigravity-cli(?:\\|$|[\\\"' ])"
+    or command_line matches regex @"\\[.]local\\share\\devin(?:\\|$|[\\\"' ])"
+    or command_line matches regex @"\\[.]config\\devin(?:\\|$|[\\\"' ])"
+    or command_line matches regex @"\\appdata\\local\\devin(?:\\|$|[\\\"' ])"
+    or command_line matches regex @"\\[.]local\\share\\kiro-cli(?:\\|$|[\\\"' ])"
+    or command_line matches regex @"\\appdata\\roaming\\kiro-cli(?:\\|$|[\\\"' ])"
+    or command_line matches regex @"\\appdata\\local\\kiro-cli(?:\\|$|[\\\"' ])"
+    or command_line matches regex @"\\[.]local\\share\\amazon-q(?:\\|$|[\\\"' ])"
+    or command_line matches regex @"\\[.]aws\\amazonq(?:\\|$|[\\\"' ])"
+    or command_line matches regex @"\\appdata\\local\\amazon-q(?:\\|$|[\\\"' ])"
+    or command_line matches regex @"\\[.]local\\share\\opencode(?:\\|$|[\\\"' ])"
+    or command_line matches regex @"\\[.]config\\opencode(?:\\|$|[\\\"' ])"
+    or command_line matches regex @"\\[.]cache\\opencode(?:\\|$|[\\\"' ])"
+    or command_line matches regex @"\\[.]local\\state\\opencode(?:\\|$|[\\\"' ])"
+    or command_line matches regex @"\\[.]local\\share\\muse(?:\\|$|[\\\"' ])"
+    or command_line matches regex @"\\[.]config\\muse(?:\\|$|[\\\"' ])"
+    or command_line matches regex @"\\appdata\\local\\programs\\muse(?:\\|$|[\\\"' ])"
     or command_line matches regex @"\\[.]claude[.]json(?:$|[\"' ])"
 | extend artifact_priority = iff(
-    command_line matches regex @"(auth[.]json|[.]credentials[.]json|config[.]toml|default[.]rules|session_index[.]jsonl|history[.]jsonl|store[.]db|ai-code-tracking[.]db|mcp_config[.]json|conversation_summaries[.]db|active_sessions[.]json|session_search[.]sqlite|worktrees[.]db)",
+    command_line matches regex @"(auth[.]json|[.]credentials[.]json|config[.]toml|credentials[.]toml|default[.]rules|session_index[.]jsonl|history[.]jsonl|store[.]db|ai-code-tracking[.]db|mcp_config[.]json|conversation_summaries[.]db|active_sessions[.]json|session_search[.]sqlite|worktrees[.]db|session-roots[.]json|config[.]json|data[.]sqlite3|opencode[.]db|cli[.]json|mcp[.]json|opencode[.]json|settings[.]json|trust[.]json|session-index[.]db)",
     "high_value_child",
     "root_or_other_child"
   )

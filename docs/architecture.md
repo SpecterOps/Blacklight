@@ -3,14 +3,18 @@
 ## Purpose
 
 Blacklight helps an operator and a defender work with local AI-agent artifacts.
-Scout and Defender Rules support Codex, Claude Code, Cursor, Antigravity CLI, and Grok artifacts. Python Session Analysis supports the first four tools; Grok is reconnaissance-only and no Grok file-content parser is present.
+Scout and Defender Rules support Codex, Claude Code, Cursor, Antigravity CLI, Grok, Devin CLI, Strands Agents, Kiro CLI, OpenCode, and Muse Code artifacts. Python Session Analysis parses the first four tools and selected Grok chat artifacts. It does not parse Grok auth, memory, logs, terminal logs, or Scout bodies, and it does not parse Devin, Strands, Kiro, OpenCode, or Muse artifacts. See the [agent and CLI collection matrix](matrix.md) for Scout path-family coverage.
+
+Devin, Strands, Kiro, OpenCode, and Muse coverage is existence and path enumeration only. Kiro includes legacy Amazon Q paths; temporary logs and machine-wide Program Files installs are outside its home-relative catalog. OpenCode uses `.local`, `.config`, and `.cache` under the profile on Windows as well as POSIX. Muse uses `.config/muse` and `.local/share/muse`, with a Windows install root under `AppData/Local/Programs/muse`.
+
+Project-relative markers such as Kiro's `.kiro/` and `.amazonq/`, OpenCode's `.opencode/` and `opencode.json`/`opencode.jsonc`, and Muse's `.agents/`, `.muse/hooks.json`, `.mcp.json`, and `AGENTS.md` are reference context, not additional home-catalog targets or a promise of project discovery. Windows executable aliases include `kiro-cli`, `opencode-ai`, and `muse`/`muse-code` for the canonical IDs `kiro`, `opencode`, and `muse_code`.
 
 The repository separates two different tasks:
 
 1. Scout checks an endpoint for known artifact paths and metadata.
-2. Session Analysis processes session files that an operator already copied to an analysis host.
+2. Session Analysis processes selected session files, either from an explicit path or known local agent session roots.
 
-This separation is a required security boundary for the normal CLI workflow. Scout does not read session bodies. The `sessions` command does not connect to an endpoint or expand beyond the selected input. The operator selects the files that cross the boundary. The Python package also exposes an explicit direct-root library capability described below.
+This separation is a required security boundary for the normal CLI workflow. Scout does not read session bodies. The `sessions` command does not connect to an endpoint. With an explicit path it scans that input; `sessions local` selects known session locations below the current user's home. The Python package also exposes an explicit direct-root library capability described below.
 
 The repository also contains defender rules. These rules help a defender inventory artifacts and detect file access. The rules do not collect or parse session content.
 
@@ -51,19 +55,19 @@ The endpoint and analysis-host parts have different content rules.
 | --- | --- | --- |
 | Scout BOF and POSIX library | No | Bounded human triage of paths and file metadata. |
 | Scout Windows executable | Yes, for known non-session metadata files only | Count-only configuration, rules, and authentication metadata plus session paths. |
-| Python `sessions` command | Yes, for files selected by the operator | Local session report with redacted indicators and source paths. |
+| Python `sessions` command | Yes, for an explicit input or known local agent session roots | Local session report with redacted indicators and source paths. |
 | Python direct-root library API | Yes, for files below explicitly selected local agent roots | Parser-specific local reports; no transport. |
 | Defender Rules | No | Inventory rows, audit configuration, and detection queries. |
 
 ## Python Session Analysis
 
-The `blacklight/` directory is the analysis package. It has no endpoint transport feature. Its normal CLI workflow uses local file paths supplied to the `sessions` command. Its exported parser APIs also retain an explicit direct-root mode described under Analysis Engine.
+The `blacklight/` directory is the analysis package. It has no endpoint transport feature. The CLI accepts a supplied path or selects local session roots. Its exported parser APIs also retain an explicit direct-root mode described under Analysis Engine.
 
 ### Command Layer
 
 `blacklight/cli.py` defines the command-line interface. It accepts the `sessions` command and passes the selected limits and filters to the session workflow. It can print a human summary or a JSON terminal summary.
 
-The command supports an input file or directory. It also supports a run identifier, an output directory, a tool hint, include patterns, exclude patterns, a maximum file count, and a maximum file size. A tool hint resolves ambiguous evidence. It does not replace schema detection for a clearly identified artifact.
+The command supports an input file or directory. `local`, also the default when the path is omitted, selects known Codex, Claude, Cursor, Antigravity, and Grok session locations. It also supports a run identifier, an output directory, a tool selector or hint, include patterns, exclude patterns, a maximum file count, and a maximum file size. In local mode `--tool` selects one root and `--max-files` counts selected session candidates. With an explicit path `--tool` resolves ambiguous evidence and the file limit retains its broad-discovery meaning. A hint does not replace schema detection for a clearly identified artifact.
 
 `blacklight/__main__.py` makes the package runnable as a Python module. `blacklight/__init__.py` identifies the package.
 
@@ -94,6 +98,9 @@ The initial supported source types are:
 - Cursor chat `store.db` files and agent transcript JSONL files.
 - Antigravity CLI transcript and compatible history JSONL files.
 - Antigravity conversation SQLite files for schema and count metadata.
+- Grok ACP session updates (`session/update` and `_x.ai/session/update`), chat history, prompt history, and pretty-printed session summaries.
+
+Grok discovery is schema-based, so renamed chat artifacts are recognized outside a `.grok` directory. A `.grok` path or a generic session identifier alone does not establish a chat artifact. Other files under `.grok/sessions` are skipped and preserved in the JSON inventory; they do not contribute sessions or parse failures. `--tool grok` and the Scout alias `--tool grok-cli` only disambiguate generic records. They do not override a conflicting Codex or Claude schema. Session Analysis does not parse Grok auth, memory, logs, terminal logs, events, or Scout bodies. Adjacent ACP message chunks form one logical message; completed turns and raw chunk counts remain separate diagnostics.
 
 Cursor SQLite stores use a temporary immutable, read-only copy of the selected database file. Session Analysis does not probe or copy adjacent WAL or SHM sidecars. An operator who needs uncheckpointed WAL content must checkpoint it into the database before staging the selected file.
 
@@ -111,9 +118,9 @@ The targeting layer joins session detail with high-value results. It selects the
 
 ### Direct-Root Library Capability
 
-The exported `run_session_detail`, `run_session_high_value`, and `run_session_targeting_report` functions accept `package_root`, `target_root`, `live_root`, and tool-specific root arguments. `live_root=True` defaults to the current user's Codex, Claude Code, Cursor, and Antigravity CLI roots. These programmatic modes enumerate and parse supported files below those local roots. They do not execute recovered content, reuse credentials, or provide network transport.
+The exported `run_session_detail`, `run_session_high_value`, and `run_session_targeting_report` functions accept `package_root`, `target_root`, `live_root`, and tool-specific root arguments. `live_root=True` defaults to the current user's Codex, Claude Code, Cursor, and Antigravity CLI roots. It does not default to `~/.grok`. An explicit `grok_root`, or `target_root` with tool `grok`, enumerates Grok `summary.json`, `updates.jsonl`, `chat_history.jsonl`, and `prompt_history.jsonl` below that root. These programmatic modes enumerate and parse supported files below those local roots. They do not execute recovered content, reuse credentials, or provide network transport. The `sessions` command still reads only its selected input.
 
-The `sessions` CLI does not expose direct-root mode. Direct-root calls do not use the CLI's `max_files` and `max_file_size` discovery limits, so callers must invoke them only against a deliberately selected local root and apply any required host-level safeguards.
+The `sessions local` CLI selector is separate from those exported direct-root APIs. The CLI applies `max_files` and `max_file_size` to selected candidates. Direct-root library calls do not use the CLI's discovery limits, so callers must choose their local roots deliberately.
 
 ### Reports and Sensitivity
 
@@ -135,7 +142,7 @@ The report does not include raw message text or raw credential values. It includ
 
 `blacklight-scout/` is the endpoint part of Blacklight. It finds known local artifact paths and emits bounded triage. It supports Windows, Linux, and macOS delivery surfaces.
 
-Scout uses five stable tool identifiers: `codex`, `claude_code`, `cursor`, `antigravity_cli`, and `grok`. It also accepts common operator aliases in the Windows executable interfaces.
+Scout uses ten stable tool identifiers: `codex`, `claude_code`, `cursor`, `antigravity_cli`, `grok`, `devin`, `strands`, `kiro`, `opencode`, and `muse_code`. It also accepts common operator aliases in the Windows executable interfaces.
 
 ### Scout Catalog
 
@@ -211,7 +218,7 @@ Local build products go under `out/build/scout/`. Source directories must not co
 
 `blacklight-scout/releases/` defines release bundle content. `metadata.json` records loader and entry-point contracts. `sample_output.txt` is a sanitized output example. `verify_matrix.py` checks metadata and expected build files.
 
-`.github/workflows/release.yml` builds and publishes tagged Scout releases. It checks version agreement, catalog generation, artifact presence, release metadata, and the Windows executable smoke test. The Python unit suite is a separate required check before a release tag.
+The root release documentation is `docs/RELEASE.md`. `.github/workflows/release.yml` builds and publishes tagged Scout releases. It checks version agreement, catalog generation, artifact presence, release metadata, and the Windows executable smoke test. The Python unit suite is a separate required check before a release tag.
 
 ## Defender Rules
 
@@ -259,7 +266,7 @@ Tests validate expected behavior. They do not prove that every endpoint path exi
 
 The README contains the concise operator workflow; this document defines its boundaries, data flow, and processing limits.
 
-`.github/workflows/release.yml` is the release procedure. It defines the tagged artifact build, verification, packaging, and publishing checks.
+`docs/RELEASE.md` is the release procedure. It defines artifact, version, build, verification, and publishing checks.
 
 `skills/session-analysis/` provides guidance for interpreting Blacklight session-analysis output. `skills/blacklight-add-agent-artifact/` provides a structured process and references for adding support for another agent artifact. These skills support consistent maintenance. They are not part of the runtime data path.
 
@@ -268,7 +275,7 @@ The README contains the concise operator workflow; this document defines its bou
 Use the following rules when operating or changing Blacklight:
 
 1. Do not add transcript-body parsing to Scout.
-2. Do not add endpoint transport to the Python analysis package. Keep direct-root discovery explicit to the documented library API, and keep the `sessions` CLI limited to its selected input.
+2. Do not add endpoint transport to the Python analysis package. Keep `sessions local` bounded to known session roots and explicit path scans limited to their selected input.
 3. Keep raw credential values and raw matched indicator values out of reports.
 4. Keep catalog changes aligned across Scout, defender inventory, and tests.
 5. Treat paths, session titles, project context, timestamps, and hashes as sensitive data.

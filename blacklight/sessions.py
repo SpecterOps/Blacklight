@@ -8,9 +8,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+from .progress import ProgressCallback, ProgressEvent
+
 from .analyze import build_session_targeting_report, run_session_detail, run_session_high_value
 from .common import host_context, safe_name, utc_now
-from .session_input import SessionInputDiscovery, SessionSource, discover_session_inputs
+from .session_input import SessionInputDiscovery, SessionSource, discover_local_session_inputs, discover_session_inputs
 
 
 def default_session_run_id() -> str:
@@ -124,9 +126,17 @@ def _rank_sessions(targeting: dict[str, Any], high_value: dict[str, Any]) -> lis
         ),
         reverse=True,
     )
+    tool_ranks: Counter[str] = Counter()
     for index, row in enumerate(ranked, start=1):
         row["blacklight_rank"] = index
+        tool_ranks[str(row["tool"])] += 1
+        row["tool_rank"] = tool_ranks[str(row["tool"])]
     return ranked
+
+
+def _top_sessions_per_tool(ranked: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    order = ("codex", "claude", "cursor", "antigravity_cli", "grok")
+    return [row for tool in order for row in ranked if row["tool"] == tool and row["tool_rank"] <= 5]
 
 
 def _source_scan_targets(
@@ -205,6 +215,8 @@ def _report_summary(
 ) -> dict[str, Any]:
     summary = {
         "files_examined": discovery.files_examined,
+        "session_candidates_examined": discovery.session_candidates_examined,
+        "skipped_non_session_files": discovery.skipped_non_session_count,
         "supported_artifacts": len(discovery.sources),
         "parsed_artifacts": parsed_count,
         "ambiguous_files": discovery.ambiguous_count,
@@ -221,6 +233,9 @@ def _report_summary(
         {
             "total_request_message_count": detail_summary.get("total_request_message_count"),
             "total_response_message_count": detail_summary.get("total_response_message_count"),
+            "total_completed_turn_count": detail_summary.get("total_completed_turn_count"),
+            "total_user_message_chunk_count": detail_summary.get("total_user_message_chunk_count"),
+            "total_assistant_message_chunk_count": detail_summary.get("total_assistant_message_chunk_count"),
             "total_machine_context_count": detail_summary.get("total_machine_context_count"),
             "total_request_bytes": detail_summary.get("total_request_bytes"),
             "total_response_bytes": detail_summary.get("total_response_bytes"),
@@ -243,65 +258,57 @@ def _session_report_text_lines(
     inventory: dict[str, Any],
     summary: dict[str, Any],
     ranked_sessions: list[dict[str, Any]],
+    top_sessions: list[dict[str, Any]],
     scan_targets: list[dict[str, Any]],
     run_id: str,
     output: Path,
 ) -> list[str]:
-    context = host_context()
     lines = [
         "Blacklight Session Report",
         f"Run ID: {run_id}",
-        f"Collected UTC: {utc_now()}",
-        f"Host: {context['host']}",
-        f"OS: {context['os']}",
-        f"Current user: {context['current_user']}",
-        "",
         f"Input: {discovery.input_path}",
+        f"Scope: {discovery.scan_scope}",
         "",
         "Summary:",
+        f"- Files encountered: {summary['files_examined']}; session candidates: {summary['session_candidates_examined']}; skipped non-session files: {summary['skipped_non_session_files']}",
+        f"- Artifacts: {summary['parsed_artifacts']}/{summary['supported_artifacts']} parsed; parse failures: {summary['parse_failures']}; ambiguous: {summary['ambiguous_files']}; unsupported: {summary['unsupported_files']}",
+        f"- Sessions recovered: {summary['sessions_recovered']}; requests: {summary.get('total_request_message_count') or 0}; responses: {summary.get('total_response_message_count') or 0}",
     ]
-    for key, value in summary.items():
-        if key == "indicator_category_counts":
-            continue
-        lines.append(f"- {key}: {value}")
+    if summary.get("total_assistant_message_chunk_count"):
+        lines.append(
+            f"- Grok ACP: {summary['total_completed_turn_count']} completed turns; "
+            f"{summary['total_user_message_chunk_count']} user chunks; "
+            f"{summary['total_assistant_message_chunk_count']} assistant chunks"
+        )
+    if summary.get("file_limit_reached"):
+        lines.append("- Partial result: candidate file limit reached")
+    if discovery.local_roots:
+        absent = [name for name, info in discovery.local_roots.items() if info["status"] != "present"]
+        if absent:
+            lines.append(f"- Absent roots: {', '.join(absent)}")
 
-    category_counts = summary.get("indicator_category_counts") or []
-    if category_counts:
-        lines.extend(["", "High-value indicator categories:"])
-        for entry in category_counts:
-            lines.append(f"- {entry['category']}: {entry['count']}")
-
-    lines.extend(["", "Detected artifacts:"])
+    warning_counts: Counter[tuple[str, str]] = Counter()
+    for issue in inventory["issues"]:
+        if issue["status"] != "skipped_non_session":
+            warning_counts[(issue["status"], _normalize_reason(issue["reason"]))] += 1
     for source in inventory["sources"]:
-        lines.append(f"- {source['detected_tool']} / {source['artifact_type']} / {source['parse_status']}")
-        lines.append(f"  {source['path']}")
-
-    if inventory["issues"]:
-        reason_counts: Counter[tuple[str, str]] = Counter()
-        for issue in inventory["issues"]:
-            reason_counts[(issue["status"], _normalize_reason(issue["reason"]))] += 1
-        lines.extend(["", "Unparsed files (grouped by reason):"])
-        for (status, reason), count in sorted(reason_counts.items(), key=lambda item: item[1], reverse=True):
+        if source["parse_status"] != "parsed":
+            warning_counts[(source["parse_status"], source.get("parse_error") or "recognized artifact had parse errors")] += 1
+    if warning_counts:
+        lines.extend(["", "Warnings:"])
+        for (status, reason), count in warning_counts.most_common():
             lines.append(f"- {status}: {count} file(s) - {reason}")
 
-    lines.extend(["", "Ranked sessions:"])
-    for row in ranked_sessions:
-        title = row.get("session_title") or "(untitled)"
-        lines.append(f"{row['blacklight_rank']}. {row['tool']} - score {row['blacklight_score']} - {title}")
-        lines.append(
-            f"   Requests: {row['request_count']}; responses: {row['response_count']}; "
-            f"last activity: {row.get('last_activity') or 'unknown'}"
-        )
-        context_path = row.get("project_worktree_path") or "not present"
-        indicators = ", ".join(row.get("indicator_categories", [])) or "none"
-        lines.append(f"   Project/worktree: {context_path}; indicator categories: {indicators}")
-        lines.append(f"   Source: {row.get('session_source_path') or row.get('primary_source_path')}")
+    lines.extend(["", f"Top sessions ({len(top_sessions)} of {len(ranked_sessions)}; up to 5 per tool):"])
+    for tool in dict.fromkeys(row["tool"] for row in top_sessions):
+        lines.append(f"{tool}:")
+        for row in (row for row in top_sessions if row["tool"] == tool):
+            title = " ".join(str(row.get("session_title") or "(untitled)").split())[:100]
+            lines.append(f"  {row['tool_rank']}. score {row['blacklight_score']} | {row['request_count']} req / {row['response_count']} resp | {title}")
 
-    lines.extend(["", "External scanner targets:"])
-    for target in scan_targets:
-        lines.append(f"- {target['path']}")
-
-    lines.extend(["", f"Reports: {output}"])
+    lines.extend(["", "Reports:",
+                  f"- JSON inventory and {len(scan_targets)} scanner targets: {output / (safe_name(run_id) + '_Session_Report.json')}",
+                  f"- Text summary: {output / (safe_name(run_id) + '_Session_Report.txt')}"])
     return lines
 
 
@@ -310,6 +317,7 @@ def _write_session_report(
     parse_statuses: dict[str, str],
     parse_details: dict[str, dict[str, Any]],
     ranked_sessions: list[dict[str, Any]],
+    top_sessions: list[dict[str, Any]],
     scan_targets: list[dict[str, Any]],
     summary: dict[str, Any],
     run_id: str,
@@ -330,6 +338,7 @@ def _write_session_report(
         "collected_at_utc": utc_now(),
         **host_context(),
         "input_path": str(root),
+        "scan_scope": discovery.scan_scope,
         "output_directory": str(output),
         "content_policy": {
             "raw_message_text_included": False,
@@ -342,6 +351,7 @@ def _write_session_report(
         "summary": summary,
         "artifact_inventory": inventory,
         "sessions": ranked_sessions,
+        "top_sessions": top_sessions,
         "scan_targets": scan_targets,
     }
 
@@ -349,7 +359,7 @@ def _write_session_report(
     json_path = output / f"{base_name}.json"
     text_path = output / f"{base_name}.txt"
     json_path.write_text(json.dumps(envelope, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
-    text_lines = _session_report_text_lines(discovery, inventory, summary, ranked_sessions, scan_targets, run_id, output)
+    text_lines = _session_report_text_lines(discovery, inventory, summary, ranked_sessions, top_sessions, scan_targets, run_id, output)
     text_path.write_text("\n".join(text_lines) + "\n", encoding="utf-8")
     return {"json": str(json_path), "text": str(text_path)}
 
@@ -364,35 +374,38 @@ def run_sessions_analysis(
     max_file_size: int = 512 * 1024 * 1024,
     includes: Iterable[str] = (),
     excludes: Iterable[str] = (),
+    local_mode: bool = False,
+    progress_callback: ProgressCallback | None = None,
 ) -> dict[str, Any]:
     run_id = run_id or default_session_run_id()
-    discovery = discover_session_inputs(
-        Path(input_path).expanduser(),
-        tool_hint=tool,
-        max_files=max_files,
-        max_file_size=max_file_size,
-        includes=includes,
-        excludes=excludes,
-    )
+    discover = discover_local_session_inputs if local_mode else discover_session_inputs
+    discovery = discover(Path(input_path).expanduser(), **({"tool": tool} if local_mode else {"tool_hint": tool}),
+                         max_files=max_files, max_file_size=max_file_size, includes=includes, excludes=excludes,
+                         progress_callback=progress_callback)
     root = discovery.input_path
     output = Path(output_directory).expanduser().resolve() if output_directory else (root / "blacklight-reports" if root.is_dir() else root.parent / "blacklight-reports")
-    if not discovery.sources:
+    if not discovery.sources and not local_mode:
         raise ValueError(f"No supported session artifacts were found under '{root}'.")
     output.mkdir(parents=True, exist_ok=True)
     detail = run_session_detail(
         run_id=run_id,
         output_directory=None,
         session_sources=discovery.sources,
+        progress_callback=progress_callback,
         input_root=root,
     )
     high_value = run_session_high_value(
         run_id=run_id,
         output_directory=None,
         session_sources=discovery.sources,
+        progress_callback=progress_callback,
         input_root=root,
     )
+    if progress_callback is not None:
+        progress_callback(ProgressEvent("Writing reports"))
     targeting = build_session_targeting_report({"session_detail": detail})
     ranked_sessions = _rank_sessions(targeting, high_value)
+    top_sessions = _top_sessions_per_tool(ranked_sessions)
     statuses = _artifact_parse_status(detail)
     scan_targets = _source_scan_targets(discovery.sources, ranked_sessions, statuses)
     parsed_count = sum(status in {"parsed", "parsed_partial"} for status in statuses.values())
@@ -403,13 +416,17 @@ def run_sessions_analysis(
     )
     summary = _report_summary(discovery, parsed_count, parse_failure_count, len(ranked_sessions), detail, high_value, targeting)
     parse_details = _artifact_parse_details(detail)
-    report_paths = _write_session_report(discovery, statuses, parse_details, ranked_sessions, scan_targets, summary, run_id, root, output)
+    report_paths = _write_session_report(discovery, statuses, parse_details, ranked_sessions, top_sessions, scan_targets, summary, run_id, root, output)
     return {
         "run_id": run_id,
         "input_path": str(root),
+        "scan_scope": discovery.scan_scope,
+        "local_roots": discovery.local_roots,
         "output_directory": str(output),
         "summary": {
             "files_examined": discovery.files_examined,
+            "session_candidates_examined": discovery.session_candidates_examined,
+            "skipped_non_session_files": discovery.skipped_non_session_count,
             "supported_artifacts": len(discovery.sources),
             "parsed_artifacts": parsed_count,
             "ambiguous_files": discovery.ambiguous_count,
@@ -419,7 +436,7 @@ def run_sessions_analysis(
             "skipped_link_count": discovery.skipped_links,
             "sessions_recovered": len(ranked_sessions),
         },
-        "top_sessions": ranked_sessions[:10],
+        "top_sessions": top_sessions,
         "scan_targets": scan_targets,
         "reports": {"session_report": report_paths},
     }
@@ -431,7 +448,10 @@ def session_summary_lines(result: dict[str, Any]) -> list[str]:
         "Blacklight Session Analysis",
         "",
         f"Input: {result['input_path']}",
+        f"Scope: {result['scan_scope']}",
         f"Files examined:       {summary['files_examined']}",
+        f"Session candidates:   {summary['session_candidates_examined']}",
+        f"Non-session skipped:  {summary['skipped_non_session_files']}",
         f"Supported artifacts:  {summary['supported_artifacts']}",
         f"Parsed artifacts:     {summary['parsed_artifacts']}",
         f"Ambiguous files:      {summary['ambiguous_files']}",
@@ -440,15 +460,17 @@ def session_summary_lines(result: dict[str, Any]) -> list[str]:
         f"Links skipped:        {summary['skipped_link_count']}",
         f"Sessions recovered:   {summary['sessions_recovered']}",
         "",
-        "Top sessions:",
+        "Top sessions (up to 5 per tool):",
     ]
-    for row in result["top_sessions"]:
-        title = row.get("session_title") or "(untitled)"
-        lines.append(f"{row['blacklight_rank']}. {row['tool']} - score {row['blacklight_score']} - {title}")
-        lines.append(f"   Requests: {row['request_count']}; responses: {row['response_count']}; last activity: {row.get('last_activity') or 'unknown'}")
-        context = row.get("project_worktree_path") or "not present"
-        indicators = ", ".join(row.get("indicator_categories", [])) or "none"
-        lines.append(f"   Project/worktree: {context}; indicator categories: {indicators}")
-        lines.append(f"   Source: {row.get('session_source_path') or row.get('primary_source_path')}")
+    if summary["file_limit_reached"]:
+        lines.append("Partial result: candidate file limit reached")
+    absent = [name for name, info in result.get("local_roots", {}).items() if info["status"] != "present"]
+    if absent:
+        lines.append(f"Absent roots: {', '.join(absent)}")
+    for tool in dict.fromkeys(row["tool"] for row in result["top_sessions"]):
+        lines.append(f"{tool}:")
+        for row in (row for row in result["top_sessions"] if row["tool"] == tool):
+            title = " ".join(str(row.get("session_title") or "(untitled)").split())[:100]
+            lines.append(f"  {row['tool_rank']}. score {row['blacklight_score']} | {row['request_count']} req / {row['response_count']} resp | {title}")
     lines.extend(["", f"Reports: {result['output_directory']}"])
     return lines

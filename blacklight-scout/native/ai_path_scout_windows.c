@@ -32,10 +32,10 @@ static int g_auto_select_count = 0;
 #ifndef BL_MAX_OPERATOR_TARGETS
 #define BL_MAX_OPERATOR_TARGETS 256
 #endif
-#define BL_SCOUT_VERSION "0.2.1"
+#define BL_SCOUT_VERSION "0.2.5"
 #define BL_SESSION_SCAN_LIMIT 10000
 #define BL_SESSION_SCAN_MAX_DEPTH 32
-#define BL_SESSION_TOOL_COUNT 5
+#define BL_SESSION_TOOL_COUNT 10
 #define BL_TOP_SESSIONS_PER_TOOL 3
 #define BL_TOP_SESSION_COUNT (BL_SESSION_TOOL_COUNT * BL_TOP_SESSIONS_PER_TOOL)
 #define BL_MAX_CHILD_COUNT_DEPTH 4
@@ -492,6 +492,11 @@ static int session_tool_slot(const char *tool) {
     if (strcmp(tool, "cursor") == 0) return 2;
     if (strcmp(tool, "antigravity_cli") == 0) return 3;
     if (strcmp(tool, "grok") == 0) return 4;
+    if (strcmp(tool, "devin") == 0) return 5;
+    if (strcmp(tool, "strands") == 0) return 6;
+    if (strcmp(tool, "kiro") == 0) return 7;
+    if (strcmp(tool, "opencode") == 0) return 8;
+    if (strcmp(tool, "muse_code") == 0) return 9;
     return -1;
 }
 
@@ -928,7 +933,12 @@ static void inspect_known_artifact(bl_operator_target_t *target) {
         "sandbox_mode", "approval_policy", "permissions"
     };
     if (!target || !target_is_file(target)) return;
-    if (target_tool_is(target, "grok")) {
+    if (target_tool_is(target, "grok") ||
+        target_tool_is(target, "devin") ||
+        target_tool_is(target, "strands") ||
+        target_tool_is(target, "kiro") ||
+        target_tool_is(target, "opencode") ||
+        target_tool_is(target, "muse_code")) {
         append_safe_signal(target, "inspection", "deferred");
         return;
     }
@@ -1065,6 +1075,11 @@ static const char *tool_display_name(const char *tool) {
     if (strcmp(tool, "cursor") == 0) return "CURSOR";
     if (strcmp(tool, "antigravity_cli") == 0) return "ANTIGRAVITY CLI";
     if (strcmp(tool, "grok") == 0) return "GROK";
+    if (strcmp(tool, "devin") == 0) return "DEVIN";
+    if (strcmp(tool, "strands") == 0) return "STRANDS";
+    if (strcmp(tool, "kiro") == 0) return "KIRO";
+    if (strcmp(tool, "opencode") == 0) return "OPENCODE";
+    if (strcmp(tool, "muse_code") == 0) return "MUSE CODE";
     return tool;
 }
 
@@ -1116,7 +1131,7 @@ static int target_signal_count(const bl_operator_target_t *target, const char *p
 }
 
 static void print_assessment_summary(void) {
-    static const char *tools[] = {"codex", "claude_code", "cursor", "antigravity_cli", "grok"};
+    static const char *tools[] = {"codex", "claude_code", "cursor", "antigravity_cli", "grok", "devin", "strands", "kiro", "opencode", "muse_code"};
     int i;
     int tool_count = 0, auth_count = 0, trusted = 0, sessions = 0, session_artifacts = 0;
     int partial = g_operator_target_overflow || g_dynamic_scan_partial || g_session_scan_partial;
@@ -1660,7 +1675,7 @@ static void print_session_files(const char *heading, const bl_session_candidate_
 }
 
 static void print_operator_triage_summary(void) {
-    static const char *tools[] = {"codex", "claude_code", "cursor", "antigravity_cli", "grok"};
+    static const char *tools[] = {"codex", "claude_code", "cursor", "antigravity_cli", "grok", "devin", "strands", "kiro", "opencode", "muse_code"};
     int i;
     printf("[i] Blacklight endpoint assessment\n[i]\n");
     if (g_operator_target_count <= 0) {

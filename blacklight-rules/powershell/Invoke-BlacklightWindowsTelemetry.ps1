@@ -100,7 +100,28 @@ function Get-TargetDefinitions {
             @{ Tool = 'claude_code'; RelativePath = '.claude.json' },
             @{ Tool = 'cursor'; RelativePath = '.cursor' },
             @{ Tool = 'antigravity_cli'; RelativePath = '.gemini\antigravity-cli' },
-            @{ Tool = 'grok'; RelativePath = '.grok' }
+            @{ Tool = 'grok'; RelativePath = '.grok' },
+            @{ Tool = 'devin'; RelativePath = 'AppData\Local\devin' },
+            @{ Tool = 'devin'; RelativePath = '.local\share\devin' },
+            @{ Tool = 'devin'; RelativePath = '.config\devin' },
+            @{ Tool = 'strands'; RelativePath = '.strands' },
+            @{ Tool = 'kiro'; RelativePath = '.kiro' },
+            @{ Tool = 'kiro'; RelativePath = '.local\share\kiro-cli' },
+            @{ Tool = 'kiro'; RelativePath = 'AppData\Roaming\kiro-cli' },
+            @{ Tool = 'kiro'; RelativePath = 'AppData\Local\kiro-cli' },
+            @{ Tool = 'kiro'; RelativePath = 'AppData\Local\Kiro-Cli' },
+            @{ Tool = 'kiro'; RelativePath = '.local\share\amazon-q' },
+            @{ Tool = 'kiro'; RelativePath = '.aws\amazonq' },
+            @{ Tool = 'kiro'; RelativePath = 'AppData\Local\amazon-q' },
+            @{ Tool = 'opencode'; RelativePath = '.opencode' },
+            @{ Tool = 'opencode'; RelativePath = '.local\share\opencode' },
+            @{ Tool = 'opencode'; RelativePath = '.config\opencode' },
+            @{ Tool = 'opencode'; RelativePath = '.cache\opencode' },
+            @{ Tool = 'opencode'; RelativePath = '.local\state\opencode' },
+            @{ Tool = 'muse_code'; RelativePath = '.config\muse' },
+            @{ Tool = 'muse_code'; RelativePath = '.local\share\muse' },
+            @{ Tool = 'muse_code'; RelativePath = '.muse' },
+            @{ Tool = 'muse_code'; RelativePath = 'AppData\Local\Programs\muse' }
         )
     }
     @(
@@ -123,7 +144,23 @@ function Get-TargetDefinitions {
         @{ Tool = 'grok'; RelativePath = '.grok\config.toml' },
         @{ Tool = 'grok'; RelativePath = '.grok\active_sessions.json' },
         @{ Tool = 'grok'; RelativePath = '.grok\sessions\session_search.sqlite' },
-        @{ Tool = 'grok'; RelativePath = '.grok\worktrees.db' }
+        @{ Tool = 'grok'; RelativePath = '.grok\worktrees.db' },
+        @{ Tool = 'devin'; RelativePath = '.local\share\devin\credentials.toml' },
+        @{ Tool = 'devin'; RelativePath = 'AppData\Local\devin\cli\bin\devin.exe' },
+        @{ Tool = 'strands'; RelativePath = '.strands\cli\config.json' },
+        @{ Tool = 'strands'; RelativePath = '.strands\cli\session-roots.json' },
+        @{ Tool = 'kiro'; RelativePath = '.kiro\settings\cli.json' },
+        @{ Tool = 'kiro'; RelativePath = '.kiro\settings\mcp.json' },
+        @{ Tool = 'kiro'; RelativePath = '.local\share\kiro-cli\data.sqlite3' },
+        @{ Tool = 'kiro'; RelativePath = 'AppData\Roaming\kiro-cli\data.sqlite3' },
+        @{ Tool = 'opencode'; RelativePath = '.local\share\opencode\auth.json' },
+        @{ Tool = 'opencode'; RelativePath = '.local\share\opencode\opencode.db' },
+        @{ Tool = 'opencode'; RelativePath = '.config\opencode\opencode.json' },
+        @{ Tool = 'opencode'; RelativePath = '.config\opencode\cli.json' },
+        @{ Tool = 'muse_code'; RelativePath = '.config\muse\auth.json' },
+        @{ Tool = 'muse_code'; RelativePath = '.config\muse\settings.json' },
+        @{ Tool = 'muse_code'; RelativePath = '.config\muse\trust.json' },
+        @{ Tool = 'muse_code'; RelativePath = '.local\share\muse\session-index.db' }
     )
 }
 

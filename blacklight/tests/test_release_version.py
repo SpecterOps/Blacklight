@@ -5,6 +5,7 @@ import os
 import re
 import tomllib
 import unittest
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 
@@ -14,7 +15,7 @@ class ReleaseVersionTests(unittest.TestCase):
         cls.repo_root = Path(__file__).resolve().parents[2]
 
     def test_python_scout_and_release_metadata_versions_match(self) -> None:
-        expected = "0.2.1"
+        expected = "0.2.5"
         project = tomllib.loads((self.repo_root / "pyproject.toml").read_text(encoding="utf-8"))
         native = (self.repo_root / "blacklight-scout" / "native" / "ai_path_scout_windows.c").read_text(encoding="utf-8")
         managed = (self.repo_root / "blacklight-scout" / "managed" / "Program.cs").read_text(encoding="utf-8")
@@ -30,6 +31,13 @@ class ReleaseVersionTests(unittest.TestCase):
         self.assertEqual(re.search(r'private const string Version = "([^"]+)"', managed).group(1), expected)
         self.assertEqual(release_index["bundles"][0]["version"], expected)
         self.assertEqual(bundle["version"], expected)
+        lock = tomllib.loads((self.repo_root / "uv.lock").read_text(encoding="utf-8"))
+        self.assertEqual(
+            next(package["version"] for package in lock["package"] if package["name"] == project["project"]["name"]),
+            expected,
+        )
+        managed_project = ET.parse(self.repo_root / "blacklight-scout" / "managed" / "ai_path_scout-managed.csproj")
+        self.assertEqual(managed_project.findtext(".//Version"), expected)
 
         release_tag = os.environ.get("RELEASE_TAG")
         if release_tag:
@@ -48,6 +56,15 @@ class ReleaseVersionTests(unittest.TestCase):
         self.assertIn("No-argument", bundle["execution_tiers"]["windows_bof"])
         self.assertIn("no-argument", release_index["posix_loader_contract"])
         self.assertIn("no-argument", bundle["execution_tiers"]["posix_loaders"])
+
+    def test_release_index_points_to_canonical_checklist(self) -> None:
+        release_root = self.repo_root / "blacklight-scout" / "releases"
+        release_index = json.loads((release_root / "metadata.json").read_text(encoding="utf-8"))["bundles"][0]
+        checklist = (release_root / release_index["checklist"]).resolve()
+
+        self.assertEqual(checklist, (self.repo_root / "docs" / "RELEASE.md").resolve())
+        self.assertTrue(checklist.is_file())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -10,7 +10,10 @@ from pathlib import Path
 from typing import Any, Iterable
 
 
-SUPPORTED_TOOLS = ("codex", "claude", "cursor", "antigravity_cli")
+from .progress import AnalysisProgress, ProgressCallback
+
+
+SUPPORTED_TOOLS = ("codex", "claude", "cursor", "antigravity_cli", "grok")
 _TOOL_NAMES = {
     "codex": "Codex",
     "claude": "Claude Code",
@@ -19,7 +22,11 @@ _TOOL_NAMES = {
     "antigravity": "Antigravity CLI",
     "antigravity cli": "Antigravity CLI",
     "antigravity_cli": "Antigravity CLI",
+    "grok": "Grok",
+    "grok cli": "Grok",
 }
+_GROK_CHAT_NAMES = {"summary.json", "updates.jsonl", "chat_history.jsonl", "prompt_history.jsonl"}
+_LOCAL_TOOL_ORDER = ("Codex", "Claude Code", "Cursor", "Antigravity CLI", "Grok")
 
 
 @dataclass(frozen=True)
@@ -54,7 +61,10 @@ class SessionInputIssue:
 @dataclass
 class SessionInputDiscovery:
     input_path: Path
+    scan_scope: str = "selected_path"
+    local_roots: dict[str, dict[str, Any]] = field(default_factory=dict)
     files_examined: int = 0
+    session_candidates_examined: int = 0
     sources: list[SessionSource] = field(default_factory=list)
     issues: list[SessionInputIssue] = field(default_factory=list)
     skipped_links: int = 0
@@ -72,10 +82,18 @@ class SessionInputDiscovery:
     def parse_failed_count(self) -> int:
         return sum(issue.status == "parse_failed" for issue in self.issues)
 
+    @property
+    def skipped_non_session_count(self) -> int:
+        return sum(issue.status == "skipped_non_session" for issue in self.issues)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "input_path": str(self.input_path),
+            "scan_scope": self.scan_scope,
+            "local_roots": self.local_roots,
             "files_examined": self.files_examined,
+            "session_candidates_examined": self.session_candidates_examined,
+            "skipped_non_session_files": self.skipped_non_session_count,
             "supported_artifact_count": len(self.sources),
             "ambiguous_count": self.ambiguous_count,
             "unsupported_count": self.unsupported_count,
@@ -139,7 +157,117 @@ def _path_tool(path: Path) -> tuple[str | None, str | None]:
         return "Antigravity CLI", "recognized Antigravity CLI filename or surrounding path"
     if name in {"transcript_full.jsonl", "transcript.jsonl"}:
         return "Antigravity CLI", "recognized Antigravity CLI transcript filename"
+    if name in _GROK_CHAT_NAMES and "/.grok/" in text:
+        return "Grok", "recognized Grok chat filename and location"
     return None, None
+
+
+def _in_grok_sessions(path: Path) -> bool:
+    parts = tuple(part.lower() for part in path.parts)
+    return any(parts[index:index + 2] == (".grok", "sessions") for index in range(len(parts) - 1))
+
+
+def _grok_acp_record(record: dict[str, Any]) -> bool:
+    method = record.get("method")
+    if method not in {"session/update", "_x.ai/session/update"}:
+        return False
+    params = record.get("params")
+    if not isinstance(params, dict) or not params.get("sessionId"):
+        return False
+    update = params.get("update")
+    return isinstance(update, dict) and bool(update.get("sessionUpdate"))
+
+
+def _grok_prompt_record(record: dict[str, Any]) -> bool:
+    session_id = record.get("session_id")
+    if not isinstance(session_id, str) or not session_id.strip():
+        return False
+    if record.get("timestamp") in (None, ""):
+        return False
+    if not isinstance(record.get("prompt"), str):
+        return False
+    return isinstance(record.get("is_bash"), bool)
+
+
+def _grok_chat_content(content: Any) -> bool:
+    if isinstance(content, str):
+        return True
+    if not isinstance(content, list) or not content:
+        return False
+    return any(isinstance(item, dict) and "type" in item and "text" in item for item in content)
+
+
+def _grok_tool_call_entry(entry: Any) -> bool:
+    return isinstance(entry, dict) and isinstance(entry.get("id"), str) and isinstance(entry.get("name"), str) and "arguments" in entry
+
+
+def _grok_chat_records(records: Iterable[dict[str, Any]], *, require_tool_calls: bool = True) -> bool:
+    saw_message = False
+    saw_tool = False
+    saw_system = False
+    saw_user_or_assistant = False
+    for record in records:
+        kind = record.get("type")
+        if kind not in {"system", "user", "assistant"}:
+            continue
+        if _grok_chat_content(record.get("content")):
+            saw_message = True
+            saw_system |= kind == "system"
+            saw_user_or_assistant |= kind in {"user", "assistant"}
+        calls = record.get("tool_calls")
+        if kind == "assistant" and isinstance(calls, list) and any(_grok_tool_call_entry(item) for item in calls):
+            saw_tool = True
+    if require_tool_calls:
+        return saw_message and (saw_tool or (saw_system and saw_user_or_assistant))
+    return saw_message
+
+
+def _grok_summary_document(record: dict[str, Any]) -> bool:
+    info = record.get("info")
+    if not isinstance(info, dict) or not info.get("id") or not info.get("cwd"):
+        return False
+    if "created_at" not in record or "updated_at" not in record:
+        return False
+    return "generated_title" in record or "session_summary" in record
+
+
+def _load_grok_summary_document(path: Path) -> dict[str, Any] | None:
+    try:
+        if path.stat().st_size > 5 * 1024 * 1024:
+            return None
+        with path.open("r", encoding="utf-8-sig", errors="replace") as handle:
+            first_line = ""
+            for line in handle:
+                if line.strip():
+                    first_line = line.strip()
+                    break
+            else:
+                return None
+            try:
+                json.loads(first_line)
+            except json.JSONDecodeError:
+                handle.seek(0)
+                value = json.load(handle)
+            else:
+                return None
+    except (OSError, json.JSONDecodeError, UnicodeError):
+        return None
+    if isinstance(value, dict) and _grok_summary_document(value):
+        return value
+    return None
+
+
+def _grok_artifact(records: Iterable[dict[str, Any]], *, known_chat_name: bool = False) -> tuple[str, str, str] | None:
+    records = list(records)
+    if any(_grok_acp_record(record) for record in records):
+        return "grok_acp_jsonl", "JSONL", "grok_session_jsonl"
+    if any(_grok_prompt_record(record) for record in records):
+        return "grok_prompt_history_jsonl", "JSONL", "grok_session_jsonl"
+    if _grok_chat_records(records, require_tool_calls=not known_chat_name):
+        return "grok_chat_history_jsonl", "JSONL", "grok_session_jsonl"
+    if any(_grok_summary_document(record) for record in records):
+        return "grok_summary_json", "JSON", "grok_session_summary"
+    return None
 
 
 def _probe_jsonl(path: Path) -> tuple[list[dict[str, Any]], int, str | None]:
@@ -174,10 +302,18 @@ def _strong_jsonl_tool(records: Iterable[dict[str, Any]]) -> tuple[str | None, s
         return "Codex", "Codex rollout record schema"
     if any({"id", "thread_name", "updated_at"}.issubset(record) for record in records):
         return "Codex", "Codex session index schema"
-    if "session_id" in keys or any("payload" in record and isinstance(record.get("payload"), dict) and record.get("type") == "session_meta" for record in records):
-        return "Codex", "Codex session record schema"
-    if keys & {"sessionId", "parentUuid", "isSidechain", "userType"}:
+    if keys & {"parentUuid", "isSidechain", "userType"}:
         return "Claude Code", "Claude Code session record schema"
+    if any(_grok_acp_record(record) for record in records):
+        return "Grok", "Grok ACP session update schema"
+    if any(_grok_prompt_record(record) for record in records):
+        return "Grok", "Grok prompt history schema"
+    if _grok_chat_records(records):
+        return "Grok", "Grok chat history schema"
+    if any(_grok_summary_document(record) for record in records):
+        return "Grok", "Grok session summary schema"
+    if any("session_id" in record and str(record.get("role") or "").lower() in {"user", "assistant", "tool"} and "content" in record for record in records):
+        return "Codex", "Codex session record schema"
     if sources & {"user_explicit", "model"} or event_types & {"planner_response", "run_command", "view_file", "list_directory", "code_action"}:
         return "Antigravity CLI", "Antigravity CLI transcript record schema"
     if keys & {"agentId", "bubbleId", "composerId"}:
@@ -188,13 +324,24 @@ def _strong_jsonl_tool(records: Iterable[dict[str, Any]]) -> tuple[str | None, s
 def _detect_jsonl(path: Path, hint: str | None) -> SessionSource | SessionInputIssue:
     records, malformed, read_error = _probe_jsonl(path)
     if read_error:
-        return SessionInputIssue(path.resolve(), "parse_failed", f"content probe failed: {read_error}")
+        status = "parse_failed" if path.name.lower() in _GROK_CHAT_NAMES or not _in_grok_sessions(path) else "skipped_non_session"
+        return SessionInputIssue(path.resolve(), status, f"content probe failed: {read_error}" if status == "parse_failed" else "not a Grok chat artifact")
     if not records:
-        reason = "empty file" if path.stat().st_size == 0 else "no parser-safe JSON object records found"
-        if malformed:
-            reason += f" ({malformed} malformed probe lines)"
-        return SessionInputIssue(path.resolve(), "parse_failed", reason)
+        summary = _load_grok_summary_document(path)
+        if summary is not None:
+            records = [summary]
+        else:
+            reason = "empty file" if path.stat().st_size == 0 else "no parser-safe JSON object records found"
+            if malformed:
+                reason += f" ({malformed} malformed probe lines)"
+            status = "parse_failed" if path.name.lower() in _GROK_CHAT_NAMES or not _in_grok_sessions(path) else "skipped_non_session"
+            return SessionInputIssue(path.resolve(), status, reason if status == "parse_failed" else "not a Grok chat artifact")
     strong_tool, strong_reason = _strong_jsonl_tool(records)
+    if _in_grok_sessions(path) and strong_tool not in {None, "Grok"}:
+        status = "unsupported" if path.name.lower() in _GROK_CHAT_NAMES else "skipped_non_session"
+        return SessionInputIssue(path.resolve(), status, "conflicting session schema" if status == "unsupported" else "not a Grok chat artifact")
+    if _in_grok_sessions(path) and path.name.lower() not in _GROK_CHAT_NAMES and strong_tool != "Grok":
+        return SessionInputIssue(path.resolve(), "skipped_non_session", "not a Grok chat artifact")
     if hint and strong_tool and hint != strong_tool:
         return SessionInputIssue(path.resolve(), "unsupported", f"detected {strong_tool}, incompatible with --tool {hint}")
     tool = strong_tool
@@ -208,19 +355,30 @@ def _detect_jsonl(path: Path, hint: str | None) -> SessionSource | SessionInputI
         reason = path_reason or ("parser-safe JSONL with compatible operator tool hint" if hint else None)
     if tool is None:
         return SessionInputIssue(path.resolve(), "ambiguous", "JSONL records are valid but do not identify a supported tool")
+    format_name = "JSONL"
     if tool == "Cursor":
         artifact_type = "agent_transcript_jsonl"
         parser = "cursor_agent_transcript"
     elif tool == "Antigravity CLI":
         artifact_type = "transcript_jsonl"
         parser = "generic_session_jsonl"
+    elif tool == "Grok":
+        grok_artifact = _grok_artifact(records, known_chat_name=path.name.lower() == "chat_history.jsonl")
+        if grok_artifact is None:
+            if hint == "Grok" and not _in_grok_sessions(path):
+                grok_artifact = ("session_jsonl", "JSONL", "grok_session_jsonl")
+            else:
+                status = ("parse_failed" if path.name.lower() in _GROK_CHAT_NAMES and _in_grok_sessions(path)
+                          else "skipped_non_session" if _in_grok_sessions(path) else "ambiguous")
+                return SessionInputIssue(path.resolve(), status, "not a recognized Grok chat schema")
+        artifact_type, format_name, parser = grok_artifact
     elif path.name.lower() in {"history.jsonl", "session_index.jsonl"}:
         artifact_type = "history_jsonl" if path.name.lower() == "history.jsonl" else "session_index_jsonl"
         parser = "generic_session_jsonl"
     else:
         artifact_type = "session_jsonl"
         parser = "generic_session_jsonl"
-    return _source(path, tool, artifact_type, "JSONL", confidence, reason or "recognized JSONL", parser)
+    return _source(path, tool, artifact_type, format_name, confidence, reason or "recognized JSONL", parser)
 
 
 def _detect_sqlite(path: Path, hint: str | None) -> SessionSource | SessionInputIssue:
@@ -263,6 +421,150 @@ def _matches_patterns(path: Path, root: Path, includes: Iterable[str], excludes:
     return not any(fnmatch.fnmatch(relative, pattern) or fnmatch.fnmatch(path.name, pattern) for pattern in excludes)
 
 
+def _inspect_session_path(result: SessionInputDiscovery, path: Path, hint: str | None, max_file_size: int, *, local_candidate: bool = False) -> None:
+    if local_candidate:
+        result.session_candidates_examined += 1
+    grok_directory_file = _in_grok_sessions(path)
+    if grok_directory_file and path.suffix.lower() not in {".jsonl", ".json", ".bin"} and path.name.lower() not in _GROK_CHAT_NAMES:
+        result.issues.append(SessionInputIssue(path.resolve(), "skipped_non_session", "not a Grok chat artifact"))
+        return
+    known_grok_candidate = grok_directory_file and path.name.lower() in _GROK_CHAT_NAMES
+    if known_grok_candidate and not local_candidate:
+        result.session_candidates_examined += 1
+    try:
+        size = path.stat().st_size
+    except OSError as exc:
+        result.issues.append(SessionInputIssue(path.resolve(), "parse_failed", f"stat failed: {exc}"))
+        return
+    if size > max_file_size:
+        result.issues.append(SessionInputIssue(path.resolve(), "unsupported", f"file exceeds max size ({size} > {max_file_size} bytes)"))
+        return
+    try:
+        with path.open("rb") as handle:
+            header = handle.read(16)
+    except OSError as exc:
+        result.issues.append(SessionInputIssue(path.resolve(), "parse_failed", f"read failed: {exc}"))
+        return
+    if header == b"SQLite format 3\x00":
+        detected = (SessionInputIssue(path.resolve(), "skipped_non_session", "Grok search database is outside session scope")
+                    if grok_directory_file else _detect_sqlite(path, hint))
+    elif path.suffix.lower() in {".jsonl", ".json", ".bin", ".txt", ""}:
+        detected = _detect_jsonl(path, hint)
+    else:
+        result.issues.append(SessionInputIssue(path.resolve(), "unsupported", "extension and content do not match a supported session artifact"))
+        return
+    if isinstance(detected, SessionSource):
+        result.sources.append(detected)
+    else:
+        result.issues.append(detected)
+    if not local_candidate and not known_grok_candidate and (not isinstance(detected, SessionInputIssue) or detected.status != "skipped_non_session"):
+        result.session_candidates_examined += 1
+
+
+def _local_candidate_paths(home: Path, tool: str) -> tuple[Path, list[Path]]:
+    if tool == "Codex":
+        root = home / ".codex"
+        if root.is_symlink():
+            return root, []
+        paths = [root / "history.jsonl", root / "session_index.jsonl"]
+        paths += list((root / "sessions").glob("**/*.jsonl"))
+        paths += list((root / "archived_sessions").glob("**/*.jsonl"))
+    elif tool == "Claude Code":
+        root = home / ".claude"
+        if root.is_symlink():
+            return root, []
+        paths = [root / "history.jsonl"] + list((root / "projects").glob("**/*.jsonl"))
+        paths += list((root / "sessions").glob("**/*.jsonl"))
+    elif tool == "Cursor":
+        root = home / ".cursor"
+        if root.is_symlink():
+            return root, []
+        paths = list((root / "chats").glob("**/store.db"))
+        paths += list((root / "projects").glob("*/agent-transcripts/**/*.jsonl"))
+    elif tool == "Antigravity CLI":
+        root = home / ".gemini" / "antigravity-cli"
+        if root.is_symlink() or root.parent.is_symlink():
+            return root, []
+        paths = [root / "history.jsonl", root / "conversation_summaries.db"]
+        paths += list((root / "conversations").glob("*.db"))
+        brain = root / "brain"
+        for full in brain.glob("*/.system_generated/logs/transcript_full.jsonl"):
+            paths.append(full)
+        for compact in brain.glob("*/.system_generated/logs/transcript.jsonl"):
+            full = compact.parent / "transcript_full.jsonl"
+            if not full.is_file() or full.is_symlink():
+                paths.append(compact)
+    else:
+        root = home / ".grok" / "sessions"
+        if root.is_symlink() or root.parent.is_symlink():
+            return root, []
+        paths = [path for name in sorted(_GROK_CHAT_NAMES) for path in root.glob(f"**/{name}")]
+    return root, paths
+
+
+def discover_local_session_inputs(
+    home_path: str | Path | None = None,
+    *,
+    tool: str | None = None,
+    max_files: int = 10_000,
+    max_file_size: int = 512 * 1024 * 1024,
+    includes: Iterable[str] = (),
+    excludes: Iterable[str] = (),
+    progress_callback: ProgressCallback | None = None,
+) -> SessionInputDiscovery:
+    progress = AnalysisProgress(progress_callback)
+    progress.start("Discovering files")
+    home = Path(home_path).expanduser() if home_path is not None else Path.home()
+    if home.is_symlink():
+        raise ValueError(f"Session input path must not be a symbolic link: {home}")
+    home = home.resolve()
+    if max_files < 1 or max_file_size < 1:
+        raise ValueError("--max-files and --max-file-size must be positive integers")
+    selected_tool = normalize_tool_hint(tool)
+    result = SessionInputDiscovery(input_path=home, scan_scope="local agent session roots")
+    buckets: dict[str, list[Path]] = {}
+    for name in _LOCAL_TOOL_ORDER:
+        if selected_tool and name != selected_tool:
+            continue
+        root, found = _local_candidate_paths(home, name)
+        status = "present" if root.is_dir() else "absent"
+        if root.is_symlink() or any(parent.is_symlink() for parent in root.parents if parent != home and home in parent.parents):
+            status = "symlink_skipped"
+            result.skipped_links += 1
+        accepted = []
+        if status == "present":
+            for path in found:
+                if path.is_symlink() or any(parent.is_symlink() for parent in path.parents if parent != home and home in parent.parents):
+                    result.skipped_links += 1
+                    continue
+                if path.is_file() and _matches_patterns(path, home, includes, excludes):
+                    accepted.append(path)
+        accepted = sorted(set(accepted), key=lambda path: (-path.stat().st_mtime_ns, path.as_posix()))
+        buckets[name] = accepted
+        result.local_roots[name] = {"path": str(root), "status": status, "candidate_count": len(accepted), "examined_count": 0}
+    progress.start("Identifying supported artifacts", min(max_files, sum(len(paths) for paths in buckets.values())))
+    positions = {name: 0 for name in buckets}
+    while result.files_examined < max_files:
+        progressed = False
+        for name in buckets:
+            position = positions[name]
+            if position >= len(buckets[name]):
+                continue
+            path = buckets[name][position]
+            positions[name] += 1
+            result.files_examined += 1
+            result.local_roots[name]["examined_count"] += 1
+            _inspect_session_path(result, path, name, max_file_size, local_candidate=True)
+            progress.advance()
+            progressed = True
+            if result.files_examined >= max_files:
+                break
+        if not progressed:
+            break
+    result.limit_reached = any(positions[name] < len(paths) for name, paths in buckets.items())
+    return result
+
+
 def discover_session_inputs(
     input_path: str | Path,
     *,
@@ -271,7 +573,10 @@ def discover_session_inputs(
     max_file_size: int = 512 * 1024 * 1024,
     includes: Iterable[str] = (),
     excludes: Iterable[str] = (),
+    progress_callback: ProgressCallback | None = None,
 ) -> SessionInputDiscovery:
+    progress = AnalysisProgress(progress_callback)
+    progress.start("Discovering files")
     root = Path(input_path).expanduser()
     if root.is_symlink():
         raise ValueError(f"Session input path must not be a symbolic link: {root}")
@@ -297,30 +602,7 @@ def discover_session_inputs(
         if root.is_dir() and result.files_examined == max_files:
             result.limit_reached = True
             break
-    for path in sorted(accepted_paths, key=lambda item: str(item).lower()):
-        try:
-            size = path.stat().st_size
-        except OSError as exc:
-            result.issues.append(SessionInputIssue(path.resolve(), "parse_failed", f"stat failed: {exc}"))
-            continue
-        if size > max_file_size:
-            result.issues.append(SessionInputIssue(path.resolve(), "unsupported", f"file exceeds max size ({size} > {max_file_size} bytes)"))
-            continue
-        try:
-            with path.open("rb") as handle:
-                header = handle.read(16)
-        except OSError as exc:
-            result.issues.append(SessionInputIssue(path.resolve(), "parse_failed", f"read failed: {exc}"))
-            continue
-        if header == b"SQLite format 3\x00":
-            detected = _detect_sqlite(path, hint)
-        elif path.suffix.lower() in {".jsonl", ".json", ".bin", ".txt", ""}:
-            detected = _detect_jsonl(path, hint)
-        else:
-            result.issues.append(SessionInputIssue(path.resolve(), "unsupported", "extension and content do not match a supported session artifact"))
-            continue
-        if isinstance(detected, SessionSource):
-            result.sources.append(detected)
-        else:
-            result.issues.append(detected)
+    progress.start("Identifying supported artifacts", len(accepted_paths))
+    for path in progress.items(sorted(accepted_paths, key=lambda item: str(item).lower())):
+        _inspect_session_path(result, path, hint, max_file_size)
     return result
