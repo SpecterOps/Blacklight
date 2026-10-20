@@ -3,7 +3,7 @@
   "bundles": [
     {
       "name": "ai_path_scout",
-      "version": "0.2.5",
+      "version": "0.2.6",
       "path": "ai_path_scout",
       "metadata": "ai_path_scout/metadata.json",
       "checklist": "../../docs/RELEASE.md",

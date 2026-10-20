@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-10-20
+
 ### Added
 
 - Session Analysis now shows live terminal progress during discovery, artifact identification, session parsing, indicator scanning, and report writing, with per-phase file counts and elapsed time. The display stays active during slow files, writes to interactive stderr to preserve JSON stdout, and can be disabled with `--no-progress`.

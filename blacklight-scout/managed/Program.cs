@@ -72,7 +72,7 @@ namespace Blacklight.Scout.Managed
 
     internal static class Program
     {
-        private const string Version = "0.2.5";
+        private const string Version = "0.2.6";
         private static TextWriter _output = Console.Out;
         private static int _hitCount;
         private static int _directoryCount;
