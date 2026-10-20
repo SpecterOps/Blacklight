@@ -72,7 +72,7 @@ namespace Blacklight.Scout.Managed
 
     internal static class Program
     {
-        private const string Version = "0.2.5";
+        private const string Version = "0.2.6";
         private static TextWriter _output = Console.Out;
         private static int _hitCount;
         private static int _directoryCount;
@@ -1066,7 +1066,8 @@ namespace Blacklight.Scout.Managed
         private static bool IsRecognizedSessionFile(string tool, string path)
         {
             if (EqualsCi(tool, "codex"))
-                return ContainsCi(path, "sessions") && path.EndsWith(".jsonl", StringComparison.OrdinalIgnoreCase);
+                return ContainsCi(path, "sessions") &&
+                    (path.EndsWith(".jsonl", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".jsonl.zst", StringComparison.OrdinalIgnoreCase));
             if (EqualsCi(tool, "claude_code"))
                 return (ContainsCi(path, "sessions") || ContainsCi(path, "projects")) &&
                     path.EndsWith(".jsonl", StringComparison.OrdinalIgnoreCase);

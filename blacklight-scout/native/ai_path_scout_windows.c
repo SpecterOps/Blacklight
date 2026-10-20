@@ -32,7 +32,7 @@ static int g_auto_select_count = 0;
 #ifndef BL_MAX_OPERATOR_TARGETS
 #define BL_MAX_OPERATOR_TARGETS 256
 #endif
-#define BL_SCOUT_VERSION "0.2.5"
+#define BL_SCOUT_VERSION "0.2.6"
 #define BL_SESSION_SCAN_LIMIT 10000
 #define BL_SESSION_SCAN_MAX_DEPTH 32
 #define BL_SESSION_TOOL_COUNT 10
@@ -453,7 +453,8 @@ static int wide_ends_with_ascii_ci(const wchar_t *text, const char *suffix) {
 
 static int session_file_recognized(const char *tool, const wchar_t *path) {
     if (strcmp(tool, "codex") == 0) {
-        return wide_contains_ascii_n_ci(path, "sessions", 8) && wide_ends_with_ascii_ci(path, ".jsonl");
+        return wide_contains_ascii_n_ci(path, "sessions", 8) &&
+            (wide_ends_with_ascii_ci(path, ".jsonl") || wide_ends_with_ascii_ci(path, ".jsonl.zst"));
     }
     if (strcmp(tool, "claude_code") == 0) {
         return (wide_contains_ascii_n_ci(path, "sessions", 8) || wide_contains_ascii_n_ci(path, "projects", 8)) &&

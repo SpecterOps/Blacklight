@@ -36,27 +36,32 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version-file: ".python-version"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.2"
 
       - name: Install and smoke test operator CLI
         run: |
-          python -m pip install -e .
-          blacklight --help
-          blacklight sessions --help
+          uv sync --locked
+          uv run --locked blacklight --help
+          uv run --locked blacklight sessions --help
 
       - name: Verify tag matches embedded release version
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           RELEASE_TAG: ${{ github.ref_name }}
-        run: python -m unittest blacklight.tests.test_release_version
+        run: uv run --locked python -m unittest blacklight.tests.test_release_version
 
       - name: Run Python suite and compile Rules SQL
         if: runner.os == 'Linux'
-        run: python -m unittest discover -s blacklight/tests -v
+        run: uv run --locked python -m unittest discover -s blacklight/tests -v
 
       - name: Regenerate Scout catalog
         run: |
-          python blacklight-scout/catalog/generate_targets.py
+          uv run --locked python blacklight-scout/catalog/generate_targets.py
           git diff --exit-code -- blacklight-scout/catalog/static_targets_generated.h blacklight-scout/managed/GeneratedTargets.cs docs/matrix.md
 
       - name: Build and verify Scout artifacts

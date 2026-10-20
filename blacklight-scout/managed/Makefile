@@ -4,7 +4,7 @@ REPO_DIR := $(abspath $(SCOUT_DIR)/..)
 BUILD_DIR ?= $(REPO_DIR)/out/build/scout
 DOTNET_IMAGE ?= mcr.microsoft.com/dotnet/sdk:8.0
 DOCKER ?= docker
-PYTHON ?= python3
+PYTHON ?= uv run --locked --project "$(REPO_DIR)" python
 DOTNET ?= dotnet
 
 .PHONY: windows-managed-exe managed-exe clean

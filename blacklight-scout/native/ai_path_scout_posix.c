@@ -306,7 +306,8 @@ static int ends_with_ci(const char *text, const char *suffix) {
 }
 
 static int session_file_recognized(const char *tool, const char *path) {
-    if (strcmp(tool, "codex") == 0) return contains_ci_n(path, "sessions", 8) && ends_with_ci(path, ".jsonl");
+    if (strcmp(tool, "codex") == 0) return contains_ci_n(path, "sessions", 8) &&
+        (ends_with_ci(path, ".jsonl") || ends_with_ci(path, ".jsonl.zst"));
     if (strcmp(tool, "claude_code") == 0) {
         return (contains_ci_n(path, "sessions", 8) || contains_ci_n(path, "projects", 8)) && ends_with_ci(path, ".jsonl");
     }

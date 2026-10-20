@@ -2,15 +2,19 @@ from __future__ import annotations
 
 import getpass
 import hashlib
+import io
 import json
 import os
 import platform
 import re
 import socket
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Iterator
+
+import zstandard
 
 SCHEMA_VERSION = "blacklight.analyze.v1"
 PARSER_VERSION = "0.1"
@@ -44,8 +48,20 @@ def read_json(path: Path) -> Any:
         return json.load(handle)
 
 
-def iter_jsonl(path: Path) -> Iterator[tuple[int, dict[str, Any] | None, str | None]]:
+@contextmanager
+def open_session_text(path: Path) -> Iterator[io.TextIOBase]:
+    if path.name.lower().endswith(".jsonl.zst") or path.suffix.lower() == ".zst":
+        with path.open("rb") as compressed:
+            with zstandard.ZstdDecompressor().stream_reader(compressed) as decompressed:
+                with io.TextIOWrapper(decompressed, encoding="utf-8-sig", errors="replace") as handle:
+                    yield handle
+        return
     with path.open("r", encoding="utf-8-sig", errors="replace") as handle:
+        yield handle
+
+
+def iter_jsonl(path: Path) -> Iterator[tuple[int, dict[str, Any] | None, str | None]]:
+    with open_session_text(path) as handle:
         for line_number, line in enumerate(handle, start=1):
             stripped = line.strip()
             if not stripped:
@@ -107,25 +123,27 @@ def text_fragments(value: Any) -> Iterator[str]:
 
 def first_value(value: Any, keys: Iterable[str], scalar_only: bool = False) -> Any:
     wanted = {key.lower() for key in keys}
+    return _first_value(value, wanted, scalar_only)
 
-    def accepted(child: Any) -> bool:
-        if child in (None, ""):
-            return False
-        if scalar_only and not isinstance(child, (str, int, float, bool)):
-            return False
-        return True
 
+def _first_value(value: Any, wanted: set[str], scalar_only: bool) -> Any:
     if isinstance(value, dict):
         for key, child in value.items():
-            if key.lower() in wanted and accepted(child):
+            if key.lower() in wanted and child not in (None, "") and (
+                not scalar_only or isinstance(child, (str, int, float, bool))
+            ):
                 return child
         for child in value.values():
-            result = first_value(child, wanted, scalar_only=scalar_only)
+            if not isinstance(child, (dict, list)):
+                continue
+            result = _first_value(child, wanted, scalar_only)
             if result not in (None, ""):
                 return result
     elif isinstance(value, list):
         for child in value:
-            result = first_value(child, wanted, scalar_only=scalar_only)
+            if not isinstance(child, (dict, list)):
+                continue
+            result = _first_value(child, wanted, scalar_only)
             if result not in (None, ""):
                 return result
     return None

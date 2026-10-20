@@ -1,6 +1,6 @@
 SCOUT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 REPO_DIR := $(abspath $(SCOUT_DIR)/..)
-PYTHON ?= python3
+PYTHON ?= uv run --locked --project "$(REPO_DIR)" python
 DOCKER ?= docker
 SCOUT_BUILD_IMAGE ?= blacklight-scout-build
 
@@ -8,8 +8,8 @@ SCOUT_BUILD_IMAGE ?= blacklight-scout-build
 
 release-local:
 	$(PYTHON) "$(SCOUT_DIR)/catalog/generate_targets.py"
-	$(MAKE) -C "$(SCOUT_DIR)" release-windows PYTHON="$(PYTHON)"
-	$(MAKE) -C "$(SCOUT_DIR)" release-linux PYTHON="$(PYTHON)"
+	$(MAKE) -C "$(SCOUT_DIR)" release-windows 'PYTHON=$(PYTHON)'
+	$(MAKE) -C "$(SCOUT_DIR)" release-linux 'PYTHON=$(PYTHON)'
 	$(PYTHON) "$(SCOUT_DIR)/releases/verify_matrix.py" --platform local
 
 # Preferred local path: one Linux container with MinGW, gcc, Make, Python, and .NET SDK.
@@ -31,7 +31,7 @@ release-macos:
 release-linux:
 	$(PYTHON) "$(SCOUT_DIR)/catalog/generate_targets.py"
 	$(MAKE) -C "$(SCOUT_DIR)/native" so
-	$(MAKE) -C "$(SCOUT_DIR)/managed" windows-managed-exe PYTHON="$(PYTHON)"
+	$(MAKE) -C "$(SCOUT_DIR)/managed" windows-managed-exe 'PYTHON=$(PYTHON)'
 	$(PYTHON) "$(SCOUT_DIR)/releases/verify_matrix.py" --platform linux
 
 verify-local:

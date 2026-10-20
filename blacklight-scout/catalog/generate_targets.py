@@ -92,7 +92,7 @@ def render_matrix(catalog: dict, artifacts_catalog: dict) -> str:
                          + " | ".join(present) + f" | {coverage} | {evidence} |")
         lines.append("")
     lines.extend(["## Regenerate", "", "```bash",
-                  "python blacklight-scout/catalog/generate_targets.py", "```", "",
+                  "uv run --locked python blacklight-scout/catalog/generate_targets.py", "```", "",
                   "Edit the source catalogs, then regenerate. This command also refreshes the native "
                   "and managed Scout target tables.", ""])
     return "\n".join(lines)

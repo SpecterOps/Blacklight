@@ -309,7 +309,8 @@ static int wide_ends_with_ascii_ci(const wchar_t *text, const char *suffix) {
 
 static int session_file_recognized(const char *tool, const wchar_t *path) {
     if (ascii_equal_n_ci(tool, c_string_len(tool), "codex")) {
-        return wide_contains_ascii_n_ci(path, "sessions", 8) && wide_ends_with_ascii_ci(path, ".jsonl");
+        return wide_contains_ascii_n_ci(path, "sessions", 8) &&
+            (wide_ends_with_ascii_ci(path, ".jsonl") || wide_ends_with_ascii_ci(path, ".jsonl.zst"));
     }
     if (ascii_equal_n_ci(tool, c_string_len(tool), "claude_code")) {
         return (wide_contains_ascii_n_ci(path, "sessions", 8) || wide_contains_ascii_n_ci(path, "projects", 8)) &&

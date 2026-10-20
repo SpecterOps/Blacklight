@@ -31,7 +31,7 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="INPUT_PATH",
         help="Directory or file to analyze; 'local' (also the default) selects known agent session roots in the current user's home.",
     )
-    sessions.add_argument("--tool", choices=["codex", "claude", "cursor", "antigravity_cli", "grok", "grok-cli"],
+    sessions.add_argument("--tool", choices=["codex", "claude", "cursor", "antigravity_cli", "grok", "grok-cli", "opencode", "muse_code"],
                           help="Select one agent root in local mode; detection hint for an explicit path.")
     sessions.add_argument("--output-directory")
     sessions.add_argument("--run-id")

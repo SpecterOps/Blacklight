@@ -4,7 +4,13 @@
 
 # Blacklight
 
-Blacklight has two separate phases: **Scout** performs endpoint triage for Codex, Claude Code, Cursor, Antigravity CLI, Grok, Devin CLI, Strands Agents, Kiro CLI, OpenCode, and Muse Code; **Session Analysis** parses selected Codex, Claude Code, Cursor, Antigravity CLI, and Grok chat artifacts. Scout still does not read Grok auth, memory, logs, terminal logs, or session bodies.
+Blacklight has two separate phases:
+
+**Scout** performs endpoint triage for Codex, Claude Code, Cursor, Antigravity CLI, Grok, Devin CLI, Strands Agents, Kiro CLI, OpenCode, and Muse Code. Scout does not read session bodies or Grok auth, memory, logs, or terminal logs.
+
+**Session Analysis** parses selected Codex, Claude Code, Cursor, Antigravity CLI, Grok, OpenCode, and Muse Code chat artifacts.
+
+See the [agent and CLI collection matrix](docs/matrix.md) for artifact coverage by tool and platform.
 
 ## Workflow
 
@@ -68,36 +74,29 @@ For artifact interfaces and runner-specific behavior, see the [Scout guide](blac
 
 ## Phase 2: Analyze selected downloads
 
-Install the Python CLI on the analysis host. It requires Python 3.11+.
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then run these commands from the repository root. uv selects Python 3.11 and installs locked dependencies in `.venv`; no environment activation is needed.
 
 ```bash
-python3.11 -m pip install -e .
-```
-
-If `blacklight` is not on `PATH`, use `python3.11 -m blacklight`.
-
-Run the CLI against any local directory containing selected JSONL or SQLite artifacts. Files may be flat, nested, renamed, or duplicated when their content has a recognized schema.
-
-Session Analysis parses selected Grok chat artifacts: ACP session updates, chat history, prompt history, and session summaries. Other `.grok/sessions` files, including usage, state, events, logs, and the search database, are recorded as skipped non-session files. Use Scout and Rules for reconnaissance of other Grok paths.
-
-Scout ranks session artifacts by newest activity and size, and reports the recognized artifact volume. For a fast review, download the selected ranked JSONL/SQLite artifacts intact; use the reported total to decide whether to collect more. Scout output and reconstructed endpoint paths are not required: any selected local directory can be analyzed.
-
-```bash
-blacklight sessions ~/Downloads/HOST-001 \
+uv sync --locked
+uv run --locked blacklight sessions ~/Downloads/HOST-001 \
   --run-id HOST-001 \
-  --output-directory out/results/HOST-001/reports \
-  --max-files 10000
+  --output-directory out/results/HOST-001/reports
 ```
 
-To analyze known Codex, Claude, Cursor, Antigravity, and Grok session roots in the current user's home directory, run `python3.11 -m blacklight sessions local`. Omitting `local` does the same. This mode skips unrelated home files, including extensions, caches, and logs. An explicit directory or file path retains broad schema discovery.
+Analyze the current user's known session roots, or select one tool:
 
-In local mode, `--tool <codex|claude|cursor|antigravity_cli|grok|grok-cli>` selects that tool's session root. With an explicit path, it remains a detection hint and does not override a conflicting schema. Use `--include`, `--exclude`, `--max-files`, and `--max-file-size` to limit scope. In local mode, `--max-files` counts selected session candidates; with an explicit directory, it retains the encountered-file limit. Add `--json` for a machine-readable terminal summary.
+```bash
+uv run --locked blacklight sessions local
+uv run --locked blacklight sessions local --tool codex
+```
 
-Interactive runs show the current phase, a progress bar with processed/total files when known, and elapsed time. Discovery and report writing use an activity indicator; it keeps moving while a large file is being processed. File counts reset for each phase, and Grok indicator scanning advances after its cross-file deduplication and scanning batch finishes. Progress goes to stderr, so `--json` stdout stays machine-readable. Use `--no-progress` to disable the display; redirecting stderr also suppresses it.
+Inputs can be directories or individual JSONL, compressed Codex `.jsonl.zst`, and supported SQLite files. Each run writes matching JSON and text reports; `--output-directory` sets their location. Use `--include`, `--exclude`, `--max-files`, and `--max-file-size` to limit scope.
 
-Each run writes a `<RUN_ID>_Session_Report.json` and matching `.txt` report. The text report summarizes coverage, warnings, and the top five sessions per detected tool; the JSON keeps that top selection plus the full ranked sessions, artifact inventory, skipped paths, scanner targets, and redacted indicator metadata. `files_examined` counts encountered files; `session_candidates_examined` counts files considered for parsing. Grok ACP reports logical message counts, completed turns, and raw chunk counts separately. Blacklight does not run external secret scanners; pass selected source files to your approved workflow.
+```bash
+uv run --locked blacklight sessions --help
+```
 
-Review skipped, partial, unsupported, ambiguous, and failed input records in the JSON inventory. A file-limit result means discovery was intentionally bounded; it does not stop supported files from being analyzed.
+See the [session analysis guide](docs/session-analysis.md) for input coverage, report contents, progress, and developer commands.
 
 ## Documentation
 
@@ -106,6 +105,8 @@ Review skipped, partial, unsupported, ambiguous, and failed input records in the
 | [Architecture](docs/architecture.md) | Boundaries, data flow, and parsing limits. |
 | [Agent and CLI collection matrix](docs/matrix.md) | Catalog-generated agent, platform, artifact-family, and collection coverage. |
 | [Defender Rules](blacklight-rules/README.md) | Inventory, exposure review, and detections. |
+
+OpenCode V1/V2 SQLite support and Muse durable-event coverage are described in [OpenCode sessions](docs/opencode-sessions.md) and [Muse sessions](docs/muse-sessions.md). Unknown Muse record types are skipped; retention can remove previously stored sessions.
 
 ## Research and contributions
 

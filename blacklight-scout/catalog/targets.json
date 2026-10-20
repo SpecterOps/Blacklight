@@ -152,7 +152,18 @@
         {"tool": "muse_code", "family": "logs", "pattern": "%USERPROFILE%/.local/share/muse/crashes"},
         {"tool": "muse_code", "family": "logs", "pattern": "%USERPROFILE%/.local/share/muse/local-tracing"},
         {"tool": "muse_code", "family": "plugins", "pattern": "%USERPROFILE%/.local/share/muse/plugins"},
-        {"tool": "muse_code", "family": "workspace", "pattern": "%USERPROFILE%/.muse/projects"}
+        {"tool": "muse_code", "family": "workspace", "pattern": "%USERPROFILE%/.muse/projects"},
+        {"tool": "kiro", "family": "history", "pattern": "%USERPROFILE%/.kiro/memories"},
+        {"tool": "kiro", "family": "sessions", "pattern": "%USERPROFILE%/.kiro/sessions/cli"},
+        {"tool": "devin", "family": "sessions", "pattern": "%USERPROFILE%/.local/share/devin/cli/sessions.db"},
+        {"tool": "devin", "family": "sessions", "pattern": "%USERPROFILE%/AppData/Local/devin/cli/sessions.db"},
+        {"tool": "devin", "family": "mcp", "pattern": "%USERPROFILE%/.config/devin/mcp_config.json"},
+        {"tool": "devin", "family": "mcp", "pattern": "%USERPROFILE%/AppData/Roaming/devin/mcp_config.json"},
+        {"tool": "codex", "family": "sessions", "pattern": "%USERPROFILE%/.codex/state_5.sqlite"},
+        {"tool": "codex", "family": "sessions", "pattern": "%USERPROFILE%/.codex/state_5.sqlite-wal"},
+        {"tool": "codex", "family": "sessions", "pattern": "%USERPROFILE%/.codex/state_5.sqlite-shm"},
+        {"tool": "opencode", "family": "auth", "pattern": "%USERPROFILE%/.local/share/opencode/opencode.db-wal"},
+        {"tool": "opencode", "family": "auth", "pattern": "%USERPROFILE%/.local/share/opencode/opencode.db-shm"}
       ]
     },
     "darwin": {
@@ -306,7 +317,18 @@
         {"tool": "muse_code", "family": "logs", "pattern": "$HOME/.local/share/muse/crashes"},
         {"tool": "muse_code", "family": "logs", "pattern": "$HOME/.local/share/muse/local-tracing"},
         {"tool": "muse_code", "family": "plugins", "pattern": "$HOME/.local/share/muse/plugins"},
-        {"tool": "muse_code", "family": "workspace", "pattern": "$HOME/.muse/projects"}
+        {"tool": "muse_code", "family": "workspace", "pattern": "$HOME/.muse/projects"},
+        {"tool": "kiro", "family": "history", "pattern": "$HOME/.kiro/memories"},
+        {"tool": "kiro", "family": "sessions", "pattern": "$HOME/.kiro/sessions/cli"},
+        {"tool": "devin", "family": "sessions", "pattern": "$HOME/.local/share/devin/cli/sessions.db"},
+        {"tool": "devin", "family": "sessions", "pattern": "$HOME/AppData/Local/devin/cli/sessions.db"},
+        {"tool": "devin", "family": "mcp", "pattern": "$HOME/.config/devin/mcp_config.json"},
+        {"tool": "devin", "family": "mcp", "pattern": "$HOME/AppData/Roaming/devin/mcp_config.json"},
+        {"tool": "codex", "family": "sessions", "pattern": "$HOME/.codex/state_5.sqlite"},
+        {"tool": "codex", "family": "sessions", "pattern": "$HOME/.codex/state_5.sqlite-wal"},
+        {"tool": "codex", "family": "sessions", "pattern": "$HOME/.codex/state_5.sqlite-shm"},
+        {"tool": "opencode", "family": "auth", "pattern": "$HOME/.local/share/opencode/opencode.db-wal"},
+        {"tool": "opencode", "family": "auth", "pattern": "$HOME/.local/share/opencode/opencode.db-shm"}
       ]
     },
     "linux": {
@@ -459,7 +481,18 @@
         {"tool": "muse_code", "family": "logs", "pattern": "$HOME/.local/share/muse/crashes"},
         {"tool": "muse_code", "family": "logs", "pattern": "$HOME/.local/share/muse/local-tracing"},
         {"tool": "muse_code", "family": "plugins", "pattern": "$HOME/.local/share/muse/plugins"},
-        {"tool": "muse_code", "family": "workspace", "pattern": "$HOME/.muse/projects"}
+        {"tool": "muse_code", "family": "workspace", "pattern": "$HOME/.muse/projects"},
+        {"tool": "kiro", "family": "history", "pattern": "$HOME/.kiro/memories"},
+        {"tool": "kiro", "family": "sessions", "pattern": "$HOME/.kiro/sessions/cli"},
+        {"tool": "devin", "family": "sessions", "pattern": "$HOME/.local/share/devin/cli/sessions.db"},
+        {"tool": "devin", "family": "sessions", "pattern": "$HOME/AppData/Local/devin/cli/sessions.db"},
+        {"tool": "devin", "family": "mcp", "pattern": "$HOME/.config/devin/mcp_config.json"},
+        {"tool": "devin", "family": "mcp", "pattern": "$HOME/AppData/Roaming/devin/mcp_config.json"},
+        {"tool": "codex", "family": "sessions", "pattern": "$HOME/.codex/state_5.sqlite"},
+        {"tool": "codex", "family": "sessions", "pattern": "$HOME/.codex/state_5.sqlite-wal"},
+        {"tool": "codex", "family": "sessions", "pattern": "$HOME/.codex/state_5.sqlite-shm"},
+        {"tool": "opencode", "family": "auth", "pattern": "$HOME/.local/share/opencode/opencode.db-wal"},
+        {"tool": "opencode", "family": "auth", "pattern": "$HOME/.local/share/opencode/opencode.db-shm"}
       ]
     }
   }

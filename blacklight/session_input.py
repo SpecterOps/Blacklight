@@ -3,17 +3,20 @@ from __future__ import annotations
 import fnmatch
 import json
 import sqlite3
-from contextlib import closing
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+import zstandard
 
+from .common import open_session_text
 from .progress import AnalysisProgress, ProgressCallback
+from .sqlite_input import sqlite_snapshot
+from .muse_sessions import is_muse_record
 
 
-SUPPORTED_TOOLS = ("codex", "claude", "cursor", "antigravity_cli", "grok")
+SUPPORTED_TOOLS = ("codex", "claude", "cursor", "antigravity_cli", "grok", "opencode", "muse_code")
 _TOOL_NAMES = {
     "codex": "Codex",
     "claude": "Claude Code",
@@ -24,9 +27,12 @@ _TOOL_NAMES = {
     "antigravity_cli": "Antigravity CLI",
     "grok": "Grok",
     "grok cli": "Grok",
+    "opencode": "OpenCode",
+    "muse_code": "Muse Code",
+    "muse code": "Muse Code",
 }
 _GROK_CHAT_NAMES = {"summary.json", "updates.jsonl", "chat_history.jsonl", "prompt_history.jsonl"}
-_LOCAL_TOOL_ORDER = ("Codex", "Claude Code", "Cursor", "Antigravity CLI", "Grok")
+_LOCAL_TOOL_ORDER = ("Codex", "Claude Code", "Cursor", "Antigravity CLI", "Grok", "OpenCode", "Muse Code")
 
 
 @dataclass(frozen=True)
@@ -274,7 +280,7 @@ def _probe_jsonl(path: Path) -> tuple[list[dict[str, Any]], int, str | None]:
     records: list[dict[str, Any]] = []
     malformed = 0
     try:
-        with path.open("r", encoding="utf-8-sig", errors="replace") as handle:
+        with open_session_text(path) as handle:
             for index, line in enumerate(handle):
                 if index >= 50:
                     break
@@ -288,7 +294,7 @@ def _probe_jsonl(path: Path) -> tuple[list[dict[str, Any]], int, str | None]:
                     continue
                 if isinstance(value, dict):
                     records.append(value)
-    except OSError as exc:
+    except (OSError, zstandard.ZstdError) as exc:
         return [], 0, str(exc)
     return records, malformed, None
 
@@ -298,6 +304,11 @@ def _strong_jsonl_tool(records: Iterable[dict[str, Any]]) -> tuple[str | None, s
     keys = {str(key) for record in records for key in record}
     event_types = {str(record.get("type", "")).lower() for record in records}
     sources = {str(record.get("source", "")).lower() for record in records}
+    if any(is_muse_record(record) for record in records):
+        return "Muse Code", "Muse durable event envelope schema"
+    if any(record.get("type") == "system" and record.get("subtype") == "init"
+           and "session_id" in record and "apiKeySource" in record for record in records):
+        return "Cursor", "Cursor CLI stream initialization schema"
     if event_types & {"session_meta", "event_msg", "response_item", "turn_context"}:
         return "Codex", "Codex rollout record schema"
     if any({"id", "thread_name", "updated_at"}.issubset(record) for record in records):
@@ -355,8 +366,11 @@ def _detect_jsonl(path: Path, hint: str | None) -> SessionSource | SessionInputI
         reason = path_reason or ("parser-safe JSONL with compatible operator tool hint" if hint else None)
     if tool is None:
         return SessionInputIssue(path.resolve(), "ambiguous", "JSONL records are valid but do not identify a supported tool")
-    format_name = "JSONL"
-    if tool == "Cursor":
+    format_name = "JSONL (Zstandard)" if path.name.lower().endswith(".jsonl.zst") else "JSONL"
+    if tool == "Muse Code":
+        artifact_type = "muse_session_jsonl"
+        parser = "muse_durable_events"
+    elif tool == "Cursor":
         artifact_type = "agent_transcript_jsonl"
         parser = "cursor_agent_transcript"
     elif tool == "Antigravity CLI":
@@ -383,9 +397,7 @@ def _detect_jsonl(path: Path, hint: str | None) -> SessionSource | SessionInputI
 
 def _detect_sqlite(path: Path, hint: str | None) -> SessionSource | SessionInputIssue:
     try:
-        uri = path.resolve().as_uri() + "?mode=ro&immutable=1"
-        with closing(sqlite3.connect(uri, uri=True)) as connection:
-            connection.execute("PRAGMA query_only = ON")
+        with sqlite_snapshot(path) as connection:
             tables = {str(row[0]).lower() for row in connection.execute("select name from sqlite_master where type = 'table'")}
             columns = {
                 str(row[1]).lower()
@@ -398,6 +410,14 @@ def _detect_sqlite(path: Path, hint: str | None) -> SessionSource | SessionInput
         if hint and hint != "Cursor":
             return SessionInputIssue(path.resolve(), "unsupported", f"detected Cursor, incompatible with --tool {hint}")
         return _source(path, "Cursor", "chat_store_sqlite", "SQLite", "strong", "Cursor blobs/meta SQLite schema", "cursor_chat_store")
+    if {"session", "message", "part"}.issubset(tables) or {"session_v2", "session_message"}.issubset(tables):
+        if hint and hint != "OpenCode":
+            return SessionInputIssue(path.resolve(), "unsupported", f"detected OpenCode, incompatible with --tool {hint}")
+        return _source(path, "OpenCode", "opencode_session_sqlite", "SQLite", "strong", "OpenCode V1/V2 SQLite session tables; database may contain credentials", "opencode_sqlite")
+    if _codex_state_name(path) and "threads" in tables and {"id", "rollout_path"}.issubset(columns):
+        if hint and hint != "Codex":
+            return SessionInputIssue(path.resolve(), "unsupported", f"detected Codex, incompatible with --tool {hint}")
+        return _source(path, "Codex", "codex_state_sqlite", "SQLite", "strong", "Codex state index; rows do not establish rollout-file existence", "sqlite_metadata")
     antigravity_schema = (
         any("conversation" in table or "summary" in table for table in tables)
         or ({"conversation_id", "session_id"} & columns and {"message", "content", "summary", "title"} & columns)
@@ -410,6 +430,11 @@ def _detect_sqlite(path: Path, hint: str | None) -> SessionSource | SessionInput
         reason = "Antigravity CLI conversation/summary SQLite schema" if antigravity_schema else "recognized Antigravity CLI SQLite location"
         return _source(path, "Antigravity CLI", "conversation_store_sqlite", "SQLite", "strong" if antigravity_schema else "moderate", reason, "antigravity_sqlite_metadata")
     return SessionInputIssue(path.resolve(), "unsupported", "SQLite schema is not supported for session parsing")
+
+
+def _codex_state_name(path: Path) -> bool:
+    name = path.name.lower()
+    return name == "state_5.sqlite" or name.startswith(("state_5.sqlite.bak", "state_5.sqlite.corrupt", "state_5.sqlite.backup"))
 
 
 def _matches_patterns(path: Path, root: Path, includes: Iterable[str], excludes: Iterable[str]) -> bool:
@@ -439,16 +464,35 @@ def _inspect_session_path(result: SessionInputDiscovery, path: Path, hint: str |
     if size > max_file_size:
         result.issues.append(SessionInputIssue(path.resolve(), "unsupported", f"file exceeds max size ({size} > {max_file_size} bytes)"))
         return
+    if path.name.lower().endswith(".jsonl.zst"):
+        try:
+            expanded_size = 0
+            with path.open("rb") as compressed:
+                with zstandard.ZstdDecompressor().stream_reader(compressed) as decompressed:
+                    while True:
+                        chunk = decompressed.read(min(1024 * 1024, max_file_size - expanded_size + 1))
+                        if not chunk:
+                            break
+                        expanded_size += len(chunk)
+                        if expanded_size > max_file_size:
+                            result.issues.append(SessionInputIssue(
+                                path.resolve(), "unsupported",
+                                f"decompressed file exceeds max size ({expanded_size} > {max_file_size} bytes)",
+                            ))
+                            return
+        except (OSError, zstandard.ZstdError) as exc:
+            result.issues.append(SessionInputIssue(path.resolve(), "parse_failed", f"zstd decompression failed: {exc}"))
+            return
     try:
         with path.open("rb") as handle:
             header = handle.read(16)
     except OSError as exc:
         result.issues.append(SessionInputIssue(path.resolve(), "parse_failed", f"read failed: {exc}"))
         return
-    if header == b"SQLite format 3\x00":
+    if header == b"SQLite format 3\x00" or _codex_state_name(path):
         detected = (SessionInputIssue(path.resolve(), "skipped_non_session", "Grok search database is outside session scope")
                     if grok_directory_file else _detect_sqlite(path, hint))
-    elif path.suffix.lower() in {".jsonl", ".json", ".bin", ".txt", ""}:
+    elif path.name.lower().endswith(".jsonl.zst") or path.suffix.lower() in {".jsonl", ".json", ".bin", ".txt", ""}:
         detected = _detect_jsonl(path, hint)
     else:
         result.issues.append(SessionInputIssue(path.resolve(), "unsupported", "extension and content do not match a supported session artifact"))
@@ -462,13 +506,22 @@ def _inspect_session_path(result: SessionInputDiscovery, path: Path, hint: str |
 
 
 def _local_candidate_paths(home: Path, tool: str) -> tuple[Path, list[Path]]:
-    if tool == "Codex":
+    if tool == "Muse Code":
+        root = home / ".local/share/muse/sessions"
+        paths = [] if root.is_symlink() else list(root.glob("**/session.jsonl"))
+    elif tool == "OpenCode":
+        root = home / ".local" / "share" / "opencode"
+        paths = [] if root.is_symlink() else [root / "opencode.db"]
+    elif tool == "Codex":
         root = home / ".codex"
         if root.is_symlink():
             return root, []
         paths = [root / "history.jsonl", root / "session_index.jsonl"]
+        paths += [path for path in root.glob("state_5.sqlite*") if _codex_state_name(path) and not path.name.endswith(("-wal", "-shm"))]
         paths += list((root / "sessions").glob("**/*.jsonl"))
+        paths += list((root / "sessions").glob("**/*.jsonl.zst"))
         paths += list((root / "archived_sessions").glob("**/*.jsonl"))
+        paths += list((root / "archived_sessions").glob("**/*.jsonl.zst"))
     elif tool == "Claude Code":
         root = home / ".claude"
         if root.is_symlink():
@@ -487,13 +540,19 @@ def _local_candidate_paths(home: Path, tool: str) -> tuple[Path, list[Path]]:
             return root, []
         paths = [root / "history.jsonl", root / "conversation_summaries.db"]
         paths += list((root / "conversations").glob("*.db"))
-        brain = root / "brain"
-        for full in brain.glob("*/.system_generated/logs/transcript_full.jsonl"):
-            paths.append(full)
-        for compact in brain.glob("*/.system_generated/logs/transcript.jsonl"):
-            full = compact.parent / "transcript_full.jsonl"
-            if not full.is_file() or full.is_symlink():
-                paths.append(compact)
+        for name in ("antigravity-cli", "antigravity-ide", "antigravity-backup"):
+            sibling = root.parent / name
+            if sibling.is_symlink():
+                continue
+            brain = sibling / "brain"
+            for full in brain.glob("*/.system_generated/logs/transcript_full.jsonl"):
+                paths.append(full)
+            for compact in brain.glob("*/.system_generated/logs/transcript.jsonl"):
+                full = compact.parent / "transcript_full.jsonl"
+                if not full.is_file() or full.is_symlink():
+                    paths.append(compact)
+        if not root.is_dir() and paths:
+            root = root.parent
     else:
         root = home / ".grok" / "sessions"
         if root.is_symlink() or root.parent.is_symlink():
