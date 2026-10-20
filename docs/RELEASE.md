@@ -2,12 +2,19 @@
 
 ## Prepare
 
-- Choose a release version and update `pyproject.toml`, native and managed executable versions, both Scout release metadata files, and `CHANGELOG.md` together.
+Run host commands from the repository root with [uv installed](https://docs.astral.sh/uv/getting-started/installation/). Synchronize the environment first:
+
+```powershell
+uv sync --locked
+```
+
+- Choose a release version and update `pyproject.toml`, native and managed executable versions, both Scout release metadata files, `uv.lock` (run `uv lock`), and `CHANGELOG.md` together.
 - Move completed Unreleased notes into a dated release heading before tagging.
 - Regenerate the catalog and commit any source or generated documentation changes:
 
 ```powershell
-py -3 blacklight-scout/catalog/generate_targets.py; git diff --check
+uv run --locked python blacklight-scout/catalog/generate_targets.py
+git diff --check
 ```
 
 ## Validate
@@ -15,7 +22,7 @@ py -3 blacklight-scout/catalog/generate_targets.py; git diff --check
 Run the Python suite on a host that permits fixture symlinks:
 
 ```powershell
-py -3 -m unittest discover -s blacklight/tests -v
+uv run --locked python -m unittest discover -s blacklight/tests -v
 ```
 
 Run the generator a second time and require no changes to the generated C table or `docs/matrix.md`. The managed `GeneratedTargets.cs` is generated and ignored by Git; build it from the same catalogs.
@@ -37,7 +44,7 @@ On macOS, build the universal dylib with `make -C blacklight-scout release-macos
 When all platform artifacts are available, verify the complete matrix:
 
 ```powershell
-py -3 blacklight-scout/releases/verify_matrix.py --platform all
+uv run --locked python blacklight-scout/releases/verify_matrix.py --platform all
 ```
 
 Require all five artifacts: `ai_path_scout.x64.o`, `ai_path_scout-windows-x64.exe`, `ai_path_scout-managed.exe`, `libai_path_scout.so`, and universal `libai_path_scout.dylib`. Validate metadata, body-free output, tool filters and aliases, and existing fixture smoke tests. Record unavailable platform checks explicitly; they remain release gates.

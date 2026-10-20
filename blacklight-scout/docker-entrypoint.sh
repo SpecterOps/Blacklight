@@ -8,4 +8,4 @@ if [[ ! -f /src/blacklight-scout/Makefile ]]; then
 fi
 
 cd /src
-exec make -C blacklight-scout release-local
+exec make -C blacklight-scout release-local PYTHON=python3

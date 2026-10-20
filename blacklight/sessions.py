@@ -104,6 +104,10 @@ def _artifact_parse_details(detail: dict[str, Any]) -> dict[str, dict[str, Any]]
 
 def _rank_sessions(targeting: dict[str, Any], high_value: dict[str, Any]) -> list[dict[str, Any]]:
     def normalized_tool(value: Any) -> str:
+        if str(value).lower() in {"muse code", "muse_code"}:
+            return "muse_code"
+        if str(value).lower() in {"muse code"}:
+            return "muse_code"
         return str(value).lower().replace(" code", "").replace(" ", "_")
 
     high_rows = {
@@ -135,7 +139,7 @@ def _rank_sessions(targeting: dict[str, Any], high_value: dict[str, Any]) -> lis
 
 
 def _top_sessions_per_tool(ranked: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    order = ("codex", "claude", "cursor", "antigravity_cli", "grok")
+    order = ("codex", "claude", "cursor", "antigravity_cli", "grok", "opencode", "muse_code")
     return [row for tool in order for row in ranked if row["tool"] == tool and row["tool_rank"] <= 5]
 
 

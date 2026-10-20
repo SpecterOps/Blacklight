@@ -153,6 +153,17 @@ static const bl_path_target_t BL_STATIC_TARGETS[] = {
     { "muse_code", "logs", L"%USERPROFILE%/.local/share/muse/local-tracing" },
     { "muse_code", "plugins", L"%USERPROFILE%/.local/share/muse/plugins" },
     { "muse_code", "workspace", L"%USERPROFILE%/.muse/projects" },
+    { "kiro", "history", L"%USERPROFILE%/.kiro/memories" },
+    { "kiro", "sessions", L"%USERPROFILE%/.kiro/sessions/cli" },
+    { "devin", "sessions", L"%USERPROFILE%/.local/share/devin/cli/sessions.db" },
+    { "devin", "sessions", L"%USERPROFILE%/AppData/Local/devin/cli/sessions.db" },
+    { "devin", "mcp", L"%USERPROFILE%/.config/devin/mcp_config.json" },
+    { "devin", "mcp", L"%USERPROFILE%/AppData/Roaming/devin/mcp_config.json" },
+    { "codex", "sessions", L"%USERPROFILE%/.codex/state_5.sqlite" },
+    { "codex", "sessions", L"%USERPROFILE%/.codex/state_5.sqlite-wal" },
+    { "codex", "sessions", L"%USERPROFILE%/.codex/state_5.sqlite-shm" },
+    { "opencode", "auth", L"%USERPROFILE%/.local/share/opencode/opencode.db-wal" },
+    { "opencode", "auth", L"%USERPROFILE%/.local/share/opencode/opencode.db-shm" },
 };
 #elif defined(__APPLE__)
 static const bl_path_target_t BL_STATIC_TARGETS[] = {
@@ -304,6 +315,17 @@ static const bl_path_target_t BL_STATIC_TARGETS[] = {
     { "muse_code", "logs", "$HOME/.local/share/muse/local-tracing" },
     { "muse_code", "plugins", "$HOME/.local/share/muse/plugins" },
     { "muse_code", "workspace", "$HOME/.muse/projects" },
+    { "kiro", "history", "$HOME/.kiro/memories" },
+    { "kiro", "sessions", "$HOME/.kiro/sessions/cli" },
+    { "devin", "sessions", "$HOME/.local/share/devin/cli/sessions.db" },
+    { "devin", "sessions", "$HOME/AppData/Local/devin/cli/sessions.db" },
+    { "devin", "mcp", "$HOME/.config/devin/mcp_config.json" },
+    { "devin", "mcp", "$HOME/AppData/Roaming/devin/mcp_config.json" },
+    { "codex", "sessions", "$HOME/.codex/state_5.sqlite" },
+    { "codex", "sessions", "$HOME/.codex/state_5.sqlite-wal" },
+    { "codex", "sessions", "$HOME/.codex/state_5.sqlite-shm" },
+    { "opencode", "auth", "$HOME/.local/share/opencode/opencode.db-wal" },
+    { "opencode", "auth", "$HOME/.local/share/opencode/opencode.db-shm" },
 };
 #else
 static const bl_path_target_t BL_STATIC_TARGETS[] = {
@@ -454,6 +476,17 @@ static const bl_path_target_t BL_STATIC_TARGETS[] = {
     { "muse_code", "logs", "$HOME/.local/share/muse/local-tracing" },
     { "muse_code", "plugins", "$HOME/.local/share/muse/plugins" },
     { "muse_code", "workspace", "$HOME/.muse/projects" },
+    { "kiro", "history", "$HOME/.kiro/memories" },
+    { "kiro", "sessions", "$HOME/.kiro/sessions/cli" },
+    { "devin", "sessions", "$HOME/.local/share/devin/cli/sessions.db" },
+    { "devin", "sessions", "$HOME/AppData/Local/devin/cli/sessions.db" },
+    { "devin", "mcp", "$HOME/.config/devin/mcp_config.json" },
+    { "devin", "mcp", "$HOME/AppData/Roaming/devin/mcp_config.json" },
+    { "codex", "sessions", "$HOME/.codex/state_5.sqlite" },
+    { "codex", "sessions", "$HOME/.codex/state_5.sqlite-wal" },
+    { "codex", "sessions", "$HOME/.codex/state_5.sqlite-shm" },
+    { "opencode", "auth", "$HOME/.local/share/opencode/opencode.db-wal" },
+    { "opencode", "auth", "$HOME/.local/share/opencode/opencode.db-shm" },
 };
 #endif
 

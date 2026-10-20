@@ -87,10 +87,13 @@ truncate -s 100 "$fixture_home/.codex/sessions/small.jsonl"
 truncate -s 200 "$fixture_home/.codex/sessions/medium.jsonl"
 truncate -s 300 "$fixture_home/.codex/sessions/large.jsonl"
 truncate -s 50 "$fixture_home/.codex/sessions/excluded-fourth.jsonl"
+printf '%s' 'BLACKLIGHT_COMPRESSED_SESSION_BODY_CANARY' > "$fixture_home/.codex/sessions/compressed-session.jsonl.zst"
+truncate -s 150 "$fixture_home/.codex/sessions/compressed-session.jsonl.zst"
 touch -t 202607040000 "$fixture_home/.codex/sessions/small.jsonl"
 touch -t 202607030000 "$fixture_home/.codex/sessions/medium.jsonl"
 touch -t 202607020000 "$fixture_home/.codex/sessions/large.jsonl"
 touch -t 202607010000 "$fixture_home/.codex/sessions/excluded-fourth.jsonl"
+touch -t 202607050000 "$fixture_home/.codex/sessions/compressed-session.jsonl.zst"
 truncate -s 500 "$fixture_home/.claude/projects/project with space/claude-session.jsonl"
 truncate -s 400 "$fixture_home/.cursor/chats/workspace/session/store.db"
 truncate -s 600 "$fixture_home/.cursor/projects/workspace/agent-transcripts/cursor-session/cursor-session.jsonl"
@@ -221,17 +224,21 @@ for expected in '600 B' '500 B' '100 B'; do
     exit 1
   }
 done
-echo "$output" | grep -Fq '[i]   Session artifacts:    8' || {
+echo "$output" | grep -Fq '[i]   Session artifacts:    9' || {
   echo "smoke test failed: session-artifact volume summary was missing" >&2
   exit 1
 }
-echo "$output" | grep -Fq '[+] [1] codex | 100 B | modified 2026-07-04' || {
-  echo "smoke test failed: newest session did not rank ahead of larger older artifacts" >&2
+echo "$output" | grep -Fq '[+] [1] codex | 150 B | modified 2026-07-05' || {
+  echo "smoke test failed: compressed Codex session was not ranked by filesystem metadata" >&2
   exit 1
 }
 ranked_count="$(echo "$output" | grep -Ec '^\[\+\] \[[1-3]\].*\| modified [0-9]{4}-[0-9]{2}-[0-9]{2}')"
 [ "$ranked_count" -eq 7 ] || {
   echo "smoke test failed: expected ranked session files for Codex, Claude Code, Cursor, and Grok" >&2
+  exit 1
+}
+echo "$output" | grep -Fxq "        $fixture_home/.codex/sessions/compressed-session.jsonl.zst" || {
+  echo "smoke test failed: compressed Codex session path was not copy/paste-ready" >&2
   exit 1
 }
 echo "$output" | grep -Fxq "        $fixture_home/.cursor/projects/workspace/agent-transcripts/cursor-session/cursor-session.jsonl" || {
@@ -240,6 +247,10 @@ echo "$output" | grep -Fxq "        $fixture_home/.cursor/projects/workspace/age
 }
 echo "$output" | grep -Fq 'linked.jsonl' && {
   echo "smoke test failed: followed or ranked a session symlink" >&2
+  exit 1
+}
+echo "$output" | grep -Fq 'BLACKLIGHT_COMPRESSED_SESSION_BODY_CANARY' && {
+  echo "smoke test failed: Scout read a compressed session body" >&2
   exit 1
 }
 echo "$output" | grep -Fq 'excluded-fourth.jsonl' && {

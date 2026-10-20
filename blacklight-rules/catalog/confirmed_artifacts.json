@@ -22,6 +22,11 @@
       "kind": "code",
       "path": "blacklight/analyze.py",
       "symbol": "run_session_detail"
+    },
+    "blacklight.docs.artifact_collection": {
+      "kind": "documentation",
+      "path": "docs/architecture.md",
+      "note": "Operator collection guidance with upstream documentation references; deferred paths are not runtime findings."
     }
   },
   "detection_boundaries": {
@@ -1888,7 +1893,8 @@
       "path_kind": "file",
       "priority": "high",
       "confirmed_by": [
-        "blacklight.scout.PATH_TARGETS"
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.analyze.run_session_detail"
       ],
       "assessment_coverage": "explicitly_assessed"
     },
@@ -2211,6 +2217,175 @@
       "relative_path": ".muse/projects",
       "path_kind": "directory",
       "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.memories",
+      "tool": "kiro",
+      "family": "history",
+      "relative_path": ".kiro/memories",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.v3_cli_sessions",
+      "tool": "kiro",
+      "family": "sessions",
+      "relative_path": ".kiro/sessions/cli",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "devin.sessions",
+      "tool": "devin",
+      "family": "sessions",
+      "relative_path": ".local/share/devin/cli/sessions.db",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "devin.sessions_windows",
+      "tool": "devin",
+      "family": "sessions",
+      "relative_path": "AppData/Local/devin/cli/sessions.db",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "devin.mcp",
+      "tool": "devin",
+      "family": "mcp",
+      "relative_path": ".config/devin/mcp_config.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "devin.mcp_windows",
+      "tool": "devin",
+      "family": "mcp",
+      "relative_path": "AppData/Roaming/devin/mcp_config.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "devin.compressed_logs",
+      "tool": "devin",
+      "family": "logs",
+      "relative_path": ".local/share/devin/cli/logs/*.log.gz",
+      "path_kind": "glob",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.docs.artifact_collection"
+      ],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "devin.compressed_logs_windows",
+      "tool": "devin",
+      "family": "logs",
+      "relative_path": "AppData/Roaming/devin/cli/logs/*.log.gz",
+      "path_kind": "glob",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.docs.artifact_collection"
+      ],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "codex.state_index",
+      "tool": "codex",
+      "family": "sessions",
+      "relative_path": ".codex/state_5.sqlite",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.analyze.run_session_detail"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.state_wal",
+      "tool": "codex",
+      "family": "sessions",
+      "relative_path": ".codex/state_5.sqlite-wal",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.state_shm",
+      "tool": "codex",
+      "family": "sessions",
+      "relative_path": ".codex/state_5.sqlite-shm",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.state_backups",
+      "tool": "codex",
+      "family": "sessions",
+      "relative_path": ".codex/state_5.sqlite.*",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.analyze.run_session_detail"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "opencode.database_wal",
+      "tool": "opencode",
+      "family": "auth",
+      "relative_path": ".local/share/opencode/opencode.db-wal",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "opencode.database_shm",
+      "tool": "opencode",
+      "family": "auth",
+      "relative_path": ".local/share/opencode/opencode.db-shm",
+      "path_kind": "file",
+      "priority": "high",
       "confirmed_by": [
         "blacklight.scout.PATH_TARGETS"
       ],

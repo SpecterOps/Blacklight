@@ -15,13 +15,13 @@ Static targets count exact catalog entries, including directories; they are not 
 | --- | ---: | ---: | ---: | ---: |
 | `antigravity_cli` | 10 | 10 | 10 | 17 |
 | `claude_code` | 10 | 10 | 10 | 18 |
-| `codex` | 12 | 13 | 12 | 14 |
+| `codex` | 15 | 16 | 15 | 18 |
 | `cursor` | 16 | 16 | 16 | 23 |
-| `devin` | 19 | 19 | 19 | 19 |
+| `devin` | 23 | 23 | 23 | 25 |
 | `grok` | 14 | 14 | 14 | 14 |
-| `kiro` | 26 | 26 | 26 | 26 |
+| `kiro` | 28 | 28 | 28 | 28 |
 | `muse_code` | 16 | 16 | 16 | 16 |
-| `opencode` | 17 | 17 | 17 | 17 |
+| `opencode` | 19 | 19 | 19 | 19 |
 | `strands` | 7 | 7 | 7 | 7 |
 
 ## Artifact families
@@ -34,9 +34,9 @@ A check means at least one Scout target or confirmed artifact is cataloged for t
 | `claude_code` | Yes | — | Yes | — | Yes | — | Yes | — | — | Yes | Yes | — | — | Yes | — | — | — | Yes | — |
 | `codex` | Yes | — | Yes | — | Yes | — | — | Yes | — | — | Yes | Yes | Yes | Yes | — | — | — | — | — |
 | `cursor` | — | — | Yes | Yes | Yes | — | Yes | — | Yes | Yes | Yes | — | — | Yes | Yes | Yes | Yes | Yes | Yes |
-| `devin` | Yes | Yes | Yes | — | — | Yes | — | — | — | — | Yes | — | — | — | — | — | — | — | — |
+| `devin` | Yes | Yes | Yes | — | — | Yes | Yes | — | — | — | Yes | — | — | Yes | — | — | — | — | — |
 | `grok` | Yes | — | Yes | — | — | Yes | — | — | — | Yes | Yes | — | — | Yes | Yes | — | — | Yes | Yes |
-| `kiro` | Yes | — | Yes | — | — | — | Yes | — | — | — | Yes | Yes | — | Yes | Yes | — | — | — | — |
+| `kiro` | Yes | — | Yes | — | Yes | — | Yes | — | — | — | Yes | Yes | — | Yes | Yes | — | — | — | — |
 | `muse_code` | Yes | Yes | Yes | — | — | Yes | — | — | — | Yes | Yes | — | — | Yes | Yes | — | — | Yes | — |
 | `opencode` | Yes | Yes | Yes | — | — | Yes | — | — | — | Yes | Yes | — | — | Yes | — | — | — | — | — |
 | `strands` | — | — | Yes | — | — | — | — | — | — | — | Yes | — | — | Yes | — | — | — | — | — |
@@ -114,6 +114,10 @@ Evidence abbreviations: **S** = static Scout catalog; **E** = endpoint count-onl
 | `.codex/archived_sessions` | sessions | directory | Yes | Yes | Yes | explicitly_assessed | S, A |
 | `.codex/session_index.jsonl` | sessions | file | Yes | Yes | Yes | explicitly_assessed | S, A |
 | `.codex/sessions` | sessions | directory | Yes | Yes | Yes | explicitly_assessed | S, A |
+| `.codex/state_5.sqlite` | sessions | file | Yes | Yes | Yes | explicitly_assessed | S, A |
+| `.codex/state_5.sqlite-shm` | sessions | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `.codex/state_5.sqlite-wal` | sessions | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `.codex/state_5.sqlite.*` | sessions | glob | — | — | — | recursively_discovered | A |
 
 ### cursor
 
@@ -153,7 +157,11 @@ Evidence abbreviations: **S** = static Scout catalog; **E** = endpoint count-onl
 | `.config/cognition` | config | directory | Yes | Yes | Yes | explicitly_assessed | S |
 | `.config/devin` | config | directory | Yes | Yes | Yes | explicitly_assessed | S |
 | `.local/share/devin/cli/logs` | logs | directory | Yes | Yes | Yes | explicitly_assessed | S |
+| `.local/share/devin/cli/logs/*.log.gz` | logs | glob | — | — | — | intentionally_deferred | blacklight.docs.artifact_collection |
 | `AppData/Roaming/devin/cli/logs` | logs | directory | Yes | Yes | Yes | explicitly_assessed | S |
+| `AppData/Roaming/devin/cli/logs/*.log.gz` | logs | glob | — | — | — | intentionally_deferred | blacklight.docs.artifact_collection |
+| `.config/devin/mcp_config.json` | mcp | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `AppData/Roaming/devin/mcp_config.json` | mcp | file | Yes | Yes | Yes | explicitly_assessed | S |
 | `.local/bin/devin` | root | file | Yes | Yes | Yes | explicitly_assessed | S |
 | `.local/share/chisel` | root | directory | Yes | Yes | Yes | explicitly_assessed | S |
 | `.local/share/cognition` | root | directory | Yes | Yes | Yes | explicitly_assessed | S |
@@ -166,6 +174,8 @@ Evidence abbreviations: **S** = static Scout catalog; **E** = endpoint count-onl
 | `AppData/Local/devin/cli` | root | directory | Yes | Yes | Yes | explicitly_assessed | S |
 | `AppData/Local/devin/cli/_versions` | root | directory | Yes | Yes | Yes | explicitly_assessed | S |
 | `AppData/Local/devin/cli/bin/devin.exe` | root | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `.local/share/devin/cli/sessions.db` | sessions | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `AppData/Local/devin/cli/sessions.db` | sessions | file | Yes | Yes | Yes | explicitly_assessed | S |
 
 ### grok
 
@@ -199,6 +209,7 @@ Evidence abbreviations: **S** = static Scout catalog; **E** = endpoint count-onl
 | `.kiro/hooks` | config | directory | Yes | Yes | Yes | explicitly_assessed | S |
 | `.kiro/settings` | config | directory | Yes | Yes | Yes | explicitly_assessed | S |
 | `.kiro/settings/cli.json` | config | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `.kiro/memories` | history | directory | Yes | Yes | Yes | explicitly_assessed | S |
 | `.aws/amazonq/mcp.json` | mcp | file | Yes | Yes | Yes | explicitly_assessed | S |
 | `.kiro/settings/mcp.json` | mcp | file | Yes | Yes | Yes | explicitly_assessed | S |
 | `.kiro` | root | directory | Yes | Yes | Yes | explicitly_assessed | S |
@@ -215,6 +226,7 @@ Evidence abbreviations: **S** = static Scout catalog; **E** = endpoint count-onl
 | `Library/Application Support/kiro-cli` | root | file | Yes | Yes | Yes | explicitly_assessed | S |
 | `.kiro/steering` | rules | directory | Yes | Yes | Yes | explicitly_assessed | S |
 | `.kiro/sessions` | sessions | directory | Yes | Yes | Yes | explicitly_assessed | S |
+| `.kiro/sessions/cli` | sessions | directory | Yes | Yes | Yes | explicitly_assessed | S |
 | `.kiro/skills` | skills | directory | Yes | Yes | Yes | explicitly_assessed | S |
 
 ### muse_code
@@ -243,7 +255,9 @@ Evidence abbreviations: **S** = static Scout catalog; **E** = endpoint count-onl
 | Artifact / path | Family | Kind | Windows | macOS | Linux | Assessment coverage | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `.local/share/opencode/auth.json` | auth | file | Yes | Yes | Yes | explicitly_assessed | S |
-| `.local/share/opencode/opencode.db` | auth | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `.local/share/opencode/opencode.db` | auth | file | Yes | Yes | Yes | explicitly_assessed | S, A |
+| `.local/share/opencode/opencode.db-shm` | auth | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `.local/share/opencode/opencode.db-wal` | auth | file | Yes | Yes | Yes | explicitly_assessed | S |
 | `.cache/opencode` | cache | file | Yes | Yes | Yes | explicitly_assessed | S |
 | `.config/opencode` | config | file | Yes | Yes | Yes | explicitly_assessed | S |
 | `.config/opencode/cli.json` | config | file | Yes | Yes | Yes | explicitly_assessed | S |
@@ -275,7 +289,7 @@ Evidence abbreviations: **S** = static Scout catalog; **E** = endpoint count-onl
 ## Regenerate
 
 ```bash
-python blacklight-scout/catalog/generate_targets.py
+uv run --locked python blacklight-scout/catalog/generate_targets.py
 ```
 
 Edit the source catalogs, then regenerate. This command also refreshes the native and managed Scout target tables.

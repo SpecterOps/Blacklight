@@ -81,6 +81,7 @@ not-json
         @{ Path = (Join-Path $fixture ".codex\sessions\medium.jsonl"); Size = 200; Modified = "2026-07-03T00:00:00Z" },
         @{ Path = (Join-Path $fixture ".codex\sessions\large.jsonl"); Size = 300; Modified = "2026-07-02T00:00:00Z" },
         @{ Path = (Join-Path $fixture ".codex\sessions\excluded-fourth.jsonl"); Size = 50; Modified = "2026-07-01T00:00:00Z" },
+        @{ Path = (Join-Path $fixture ".codex\sessions\compressed-session.jsonl.zst"); Size = 350; Modified = "2026-07-05T00:00:00Z" },
         @{ Path = (Join-Path $fixture ".claude\projects\project with space\claude-session.jsonl"); Size = 500; Modified = "2026-07-04T00:00:00Z" },
         @{ Path = (Join-Path $fixture ".claude\projects\project with space\claude-session-2.jsonl"); Size = 450; Modified = "2026-07-03T00:00:00Z" },
         @{ Path = (Join-Path $fixture ".claude\projects\project with space\claude-session-3.jsonl"); Size = 425; Modified = "2026-07-02T00:00:00Z" },
@@ -90,7 +91,13 @@ not-json
     )
     foreach ($session in $sessionFixtures) {
         $stream = [System.IO.File]::Open($session.Path, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::ReadWrite)
-        try { $stream.SetLength($session.Size) } finally { $stream.Dispose() }
+        try {
+            $stream.SetLength($session.Size)
+            if ($session.Path.EndsWith(".jsonl.zst", [System.StringComparison]::OrdinalIgnoreCase)) {
+                $canary = [System.Text.Encoding]::ASCII.GetBytes("BLACKLIGHT_COMPRESSED_SESSION_BODY_CANARY")
+                $stream.Write($canary, 0, $canary.Length)
+            }
+        } finally { $stream.Dispose() }
         if ($session.Modified) { [System.IO.File]::SetLastWriteTimeUtc($session.Path, [DateTime]::Parse($session.Modified).ToUniversalTime()) }
     }
     $linkedSession = Join-Path $fixture "not-a-session\linked.jsonl"
@@ -104,7 +111,8 @@ not-json
         $human = & $exe
         if ($LASTEXITCODE -ne 0) { throw "$exe default triage failed" }
         $joined = $human -join "`n"
-        foreach ($required in @("Blacklight endpoint assessment", "ASSESSMENT SUMMARY", "Discovery status:", "[i] CODEX", "[i] CLAUDE CODE", "1 config file | 7 recognized settings, 1 partial", "allow rule", "1 credential file | 1 suspected credential field", "1 credential file | 2 suspected credential fields | refresh token indicator present", "2 session locations", "4 session artifacts", "Session artifacts:    10", "[+] AUTHENTICATION ARTIFACTS", "[i] RULES", "[i] CONFIGURATION", "[i] SESSION LOCATIONS", "1 allow rules | 1 deny rules", "project.rules", ".mcp.json", "Additional candidate artifacts:", "PRIORITIZED SESSION ARTIFACTS (newest first)", "LARGEST SESSION ARTIFACTS", "600 B", "500 B", "modified", "cursor-session.jsonl", "claude-session.jsonl", "partial", ".credentials.json", "projects=1", "trusted=1", "mcp_definitions=1")) {
+        if ($joined.Contains("BLACKLIGHT_COMPRESSED_SESSION_BODY_CANARY")) { throw "$exe read a compressed session body" }
+        foreach ($required in @("Blacklight endpoint assessment", "ASSESSMENT SUMMARY", "Discovery status:", "[i] CODEX", "[i] CLAUDE CODE", "1 config file | 7 recognized settings, 1 partial", "allow rule", "1 credential file | 1 suspected credential field", "1 credential file | 2 suspected credential fields | refresh token indicator present", "2 session locations", "5 session artifacts", "Session artifacts:    11", "[+] AUTHENTICATION ARTIFACTS", "[i] RULES", "[i] CONFIGURATION", "[i] SESSION LOCATIONS", "1 allow rules | 1 deny rules", "project.rules", ".mcp.json", "Additional candidate artifacts:", "PRIORITIZED SESSION ARTIFACTS (newest first)", "LARGEST SESSION ARTIFACTS", "600 B", "500 B", "350 B", "modified", "compressed-session.jsonl.zst", "cursor-session.jsonl", "claude-session.jsonl", "partial", ".credentials.json", "projects=1", "trusted=1", "mcp_definitions=1")) {
             if ($joined -notmatch [regex]::Escape($required)) { throw "$exe missing expected triage text: $required" }
         }
         foreach ($removedDetailText in @("Tool summary and collection-value score", "Metadata fields:", "collection value:", "Verbose artifacts", "Summary: found=")) {
@@ -123,8 +131,8 @@ not-json
         $largestSection = $joined.Substring($largestIdx, $otherIdx - $largestIdx)
         if (($topSection | Select-String -Pattern $rankedTimestampPattern -AllMatches).Matches.Count -ne 8) { throw "$exe did not emit eight timestamped newest-session files" }
         if (($largestSection | Select-String -Pattern $rankedTimestampPattern -AllMatches).Matches.Count -ne 8) { throw "$exe did not emit eight timestamped largest-session files" }
-        $codexFirst = ($joined | Select-String -Pattern "(?m)^\[\+\] \[1\] CODEX \| 100 B \| modified 2026-07-04$" -AllMatches).Matches.Count
-        if ($codexFirst -ne 1) { throw "$exe did not rank the newest Codex session ahead of larger older artifacts" }
+        $codexFirst = ($topSection | Select-String -Pattern "(?m)^\[\+\] \[1\] CODEX \| 350 B \| modified 2026-07-05$" -AllMatches).Matches.Count
+        if ($codexFirst -ne 1) { throw "$exe did not rank the compressed Codex session by filesystem metadata" }
         if ($joined -match "\([0-9]+ bytes\)") { throw "$exe retained exact byte counts in human output" }
         if ($topSection -match "excluded-fourth\.jsonl" -or $largestSection -match "excluded-fourth\.jsonl") { throw "$exe emitted a fourth-ranked session file:`n$topSection`n$largestSection" }
         foreach ($secret in @("SECRET_CANARY_TOKEN", "SECRET_CANARY_ACCESS_TOKEN", "SECRET_CANARY_REFRESH_TOKEN", "secret-canary@example.test", "PRIVATE_ACCOUNT_ID", "SECRET_CANARY_COMMAND", "SECRET_CANARY_CHAT", "SECRET_CANARY_PROVIDER", "SECRET_CANARY_MODEL", "SECRET_CANARY_REASONING", "SECRET_CANARY_SANDBOX", "SECRET_CANARY_APPROVAL", "c:\users\fixture\trusted", "users\fixture")) {

@@ -9,10 +9,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - Session Analysis now shows live terminal progress during discovery, artifact identification, session parsing, indicator scanning, and report writing, with per-phase file counts and elapsed time. The display stays active during slow files, writes to interactive stderr to preserve JSON stdout, and can be disabled with `--no-progress`.
+- Session Analysis supports compressed Codex `.jsonl.zst` sessions and Codex state-database inputs, with source attribution and bounded processing.
+- Added OpenCode V1/V2 SQLite session parsing and Muse Code durable-event parsing. Unknown Muse record types are skipped.
+- Added discovery-only session-root lookup for Kiro CLI, Devin CLI, and Strands Agents, plus Codex session database and compressed-session coverage in Scout and Rules.
+- Added guides for session analysis, supported inputs, and artifact-root discovery.
+
+### Changed
+
+- Standardized operator and developer Python commands on `uv` with locked dependencies.
+- Accelerated session metadata lookup and reduced repeated indicator scanning with literal prefilters and a bounded cache.
+- SQLite analysis uses temporary snapshots with matching WAL/SHM sidecars to preserve selected input files.
 
 ### Fixed
 
 - Windows executable smoke tests now derive the expected version from release metadata instead of requiring the stale `0.2.0` version.
+- Compressed-session ranking smoke checks validate the newest-session section independently of the largest-session section.
 
 ## [0.2.5] - 2026-10-15
 

@@ -7,6 +7,7 @@ name = "blacklight-pipeline"
 version = "0.2.5"
 description = "Offline Blacklight downloaded-session analysis"
 requires-python = ">=3.11"
+dependencies = ["zstandard>=0.23.0"]
 
 [project.scripts]
 blacklight = "blacklight.cli:main"

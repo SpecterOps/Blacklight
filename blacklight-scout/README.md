@@ -2,7 +2,7 @@
 
 Blacklight Scout is the **endpoint collection** component of Blacklight. It discovers known AI-tool locations and emits bounded, metadata-only filesystem triage for collection and review.
 
-It does **not** parse session bodies, prompts, responses, credentials, configuration values, SQLite rows, or transcripts. Analyze downloaded artifacts separately with `blacklight sessions <directory>`.
+It does **not** parse session bodies, prompts, responses, credentials, configuration values, SQLite rows, or transcripts. Analyze downloaded artifacts separately with `uv run --locked blacklight sessions <directory>`.
 
 ## 1. Choose the artifact
 
@@ -60,10 +60,10 @@ Scout reports only recognized paths and count-only metadata. For every detected 
 
 Grok support in Scout is reconnaissance-only. Scout can rank `updates.jsonl` by filesystem metadata and reports the exact `session_search.sqlite` path. All Scout tiers defer Grok content inspection and do not read session bodies. Python Session Analysis parses selected Grok chat artifacts (ACP updates, chat history, prompt history, and session summaries). It does not parse Grok auth, memory, logs, terminal logs, or Scout bodies.
 
-Session results are artifact counts—not conversation counts. The Windows executable tier lists up to three recognized session files by newest modification time and by largest size. Use those results to decide what complete files to collect, then analyze the copies offline:
+Session results are artifact counts—not conversation counts. The Windows executable tier lists up to three recognized session files by newest modification time and by largest size. Use those results to decide what complete files to collect, then analyze the copies offline from the repository root after [setting up uv](../README.md#phase-2-analyze-selected-downloads):
 
 ```bash
-blacklight sessions <download-directory>
+uv run --locked blacklight sessions <download-directory>
 ```
 
 Results can be incomplete when a filesystem limit or access error is reached. Scout marks this with an explicit `[!]` warning and `partial scan` where applicable.
@@ -72,7 +72,7 @@ Results can be incomplete when a filesystem limit or access error is reached. Sc
 
 - Scout never follows symbolic links or Windows reparse points.
 - Windows executable inspection reads only allowlisted configuration, rules/permission, and authentication text families. It emits counts, never values.
-- Session candidates are reported by filesystem path and size only; chat bodies are never read.
+- Session candidates are reported by filesystem path and on-disk size only; chat bodies are never read. Codex `.jsonl.zst` files are included in metadata-only candidate counts and rankings.
 - Every endpoint surface stores at most 256 triage targets. The Windows executable tier also limits file inspection to 64 files, 8 MiB per file, and 32 MiB per run.
 - Directory discovery is bounded: Windows executable discovery defaults to 5,000 entries, with a separate 10,000-entry session-walk cap. Pass `--discovery-cap N` only when a broader scan is warranted.
 
@@ -88,6 +88,8 @@ Build the Windows and Linux matrix with Docker (recommended):
 ./blacklight-scout/build.sh
 # equivalent: make -C blacklight-scout release-docker
 ```
+
+Docker builds use the image's dependency-free Python helpers and require only Docker on the host. Host Make targets require [uv setup](../README.md#phase-2-analyze-selected-downloads).
 
 This builds the Windows BOF and native EXE, Linux `.so`, and managed EXE. Build the macOS dylib on macOS, where the Apple SDK and linker are available:
 

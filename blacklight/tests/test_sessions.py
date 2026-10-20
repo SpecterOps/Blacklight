@@ -9,6 +9,8 @@ from contextlib import closing, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
+import zstandard
+
 import blacklight.analyze as analyze_module
 import hashlib
 
@@ -33,6 +35,12 @@ class SessionInputTests(unittest.TestCase):
         if malformed:
             lines.insert(1, "{truncated")
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    @staticmethod
+    def _write_zstd_jsonl(path: Path, records: list[dict[str, object]]) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = "".join(json.dumps(record) + "\n" for record in records).encode("utf-8")
+        path.write_bytes(zstandard.ZstdCompressor().compress(payload))
 
     @staticmethod
     def _write_cursor_store(path: Path) -> None:
@@ -110,6 +118,47 @@ class SessionInputTests(unittest.TestCase):
         self.assertEqual(detail["request_fragment_count"], 1)
         self.assertEqual(detail["response_fragment_count"], 1)
         self.assertEqual(detail["tool_event_fragment_count"], 1)
+
+    def test_zstd_codex_explicit_input_matches_jsonl_and_preserves_source_metadata(self) -> None:
+        records = [
+            {"timestamp": "2026-07-14T10:00:00Z", "type": "session_meta", "payload": {"id": "zstd-codex", "cwd": "/work"}},
+            {"timestamp": "2026-07-14T10:00:01Z", "type": "event_msg", "payload": {"type": "user_message", "message": "hello"}},
+            {"timestamp": "2026-07-14T10:00:02Z", "type": "response_item", "payload": {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "done"}]}},
+        ]
+        compressed = self.root / "rollout-00000000-0000-0000-0000-000000000001.jsonl.zst"
+        plain = self.root / "rollout-00000000-0000-0000-0000-000000000001.jsonl"
+        self._write_zstd_jsonl(compressed, records)
+        self._write_jsonl(plain, records)
+
+        discovery = discover_session_inputs(compressed)
+        self.assertEqual(len(discovery.sources), 1)
+        source = discovery.sources[0]
+        self.assertEqual(source.path, compressed.resolve())
+        self.assertEqual(source.format, "JSONL (Zstandard)")
+        self.assertEqual(source.size_bytes, compressed.stat().st_size)
+        self.assertTrue(source.modified_time.endswith("Z"))
+
+        decoded_result = run_sessions_analysis(compressed, run_id="RUN-ZSTD", output_directory=self.root / "zstd-reports")
+        plain_result = run_sessions_analysis(plain, run_id="RUN-PLAIN", output_directory=self.root / "plain-reports")
+        self.assertEqual(decoded_result["summary"]["sessions_recovered"], plain_result["summary"]["sessions_recovered"])
+        self.assertEqual(decoded_result["top_sessions"][0]["request_count"], plain_result["top_sessions"][0]["request_count"])
+        self.assertEqual(decoded_result["top_sessions"][0]["response_count"], plain_result["top_sessions"][0]["response_count"])
+        self.assertEqual(decoded_result["top_sessions"][0]["session_source_path"], str(compressed.resolve()))
+
+    def test_zstd_corruption_and_expanded_size_limit_are_reported(self) -> None:
+        corrupt = self.root / "corrupt.jsonl.zst"
+        corrupt.write_bytes(b"not a zstandard frame")
+        valid = self.root / "valid.jsonl.zst"
+        self._write_zstd_jsonl(valid, [{"type": "session_meta", "payload": {"id": "valid-zstd"}}])
+        discovery = discover_session_inputs(self.root)
+        self.assertEqual(discovery.parse_failed_count, 1)
+        self.assertEqual([source.path for source in discovery.sources], [valid.resolve()])
+
+        oversized = self.root / "oversized.jsonl.zst"
+        self._write_zstd_jsonl(oversized, [{"type": "session_meta", "payload": {"id": "large", "text": "x" * 4096}}])
+        limited = discover_session_inputs(oversized, max_file_size=256)
+        self.assertEqual(limited.unsupported_count, 1)
+        self.assertIn("decompressed file exceeds max size", limited.issues[0].reason)
 
     def test_ambiguous_files_are_not_guessed_and_hint_does_not_override_schema(self) -> None:
         generic = self.root / "download.jsonl"
@@ -204,23 +253,24 @@ class SessionInputTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "must not be a symbolic link"):
             run_sessions_analysis(selected, run_id="RUN-SYMLINK")
 
-    def test_cursor_analysis_does_not_copy_adjacent_sidecars(self) -> None:
+    def test_cursor_analysis_copies_exact_database_sidecars(self) -> None:
         store = self.root / "store.db"
         self._write_cursor_store(store)
         Path(f"{store}-wal").write_bytes(b"")
         Path(f"{store}-shm").write_bytes(b"")
         copied_sources: list[Path] = []
-        copy2 = analyze_module.shutil.copy2
+        from blacklight import sqlite_input
+        copy2 = sqlite_input.shutil.copy2
 
         def tracked_copy(source: str | Path, destination: str | Path, *args: object, **kwargs: object) -> str:
             copied_sources.append(Path(source).resolve())
             return str(copy2(source, destination, *args, **kwargs))
 
-        with patch("blacklight.analyze.shutil.copy2", side_effect=tracked_copy):
+        with patch("blacklight.sqlite_input.shutil.copy2", side_effect=tracked_copy):
             result = run_sessions_analysis(store, run_id="RUN-CURSOR-NO-SIDECARS")
 
         self.assertEqual(result["summary"]["sessions_recovered"], 1)
-        self.assertEqual(copied_sources, [store.resolve(), store.resolve()])
+        self.assertEqual(set(copied_sources), {store.resolve(), Path(f"{store}-wal").resolve(), Path(f"{store}-shm").resolve()})
 
     def test_targeting_does_not_discover_unselected_sibling_sessions(self) -> None:
         session_id = "11111111-1111-1111-1111-111111111111"
@@ -297,6 +347,34 @@ class SessionInputTests(unittest.TestCase):
         self.assertEqual(rows[0]["request_message_count"], 1)
         self.assertEqual(rows[0]["response_message_count"], 1)
         self.assertEqual(rows[0]["machine_context_count"], 2)
+
+    def test_cursor_cli_stream_uses_messages_and_skips_terminal_duplicate(self) -> None:
+        stream = self.root / "headless.jsonl"
+        self._write_jsonl(stream, [
+            {"type": "system", "subtype": "init", "apiKeySource": "login", "session_id": "cli-one"},
+            {"type": "user", "session_id": "cli-one", "message": {"role": "user", "content": [{"type": "text", "text": "hello"}]}},
+            {"type": "assistant", "session_id": "cli-one", "message": {"role": "assistant", "content": [{"type": "text", "text": "done"}]}},
+            {"type": "result", "session_id": "cli-one", "result": "done"},
+        ])
+        discovery = discover_session_inputs(stream)
+        self.assertEqual(discovery.sources[0].detected_tool, "Cursor")
+        rows, _, errors = analyze_module._collect_cursor_agent_transcript_sessions([stream])
+        self.assertFalse(errors)
+        self.assertEqual(rows[0]["session_id"], "cli-one")
+        self.assertEqual(rows[0]["request_message_count"], 1)
+        self.assertEqual(rows[0]["response_message_count"], 1)
+        self.assertEqual(rows[0]["line_count"], 2)
+
+    def test_cursor_cli_partial_stream_skips_buffered_flushes(self) -> None:
+        stream = self.root / "partial.jsonl"
+        self._write_jsonl(stream, [
+            {"type": "system", "subtype": "init", "apiKeySource": "login", "session_id": "cli-one"},
+            {"type": "assistant", "timestamp_ms": 1, "message": {"role": "assistant", "content": "new"}},
+            {"type": "assistant", "timestamp_ms": 2, "model_call_id": "call", "message": {"role": "assistant", "content": "new"}},
+            {"type": "assistant", "message": {"role": "assistant", "content": "new"}},
+        ])
+        rows, _, _ = analyze_module._collect_cursor_agent_transcript_sessions([stream])
+        self.assertEqual(rows[0]["response_message_count"], 1)
 
     def test_flat_cursor_transcript_does_not_gain_synthetic_project_context(self) -> None:
         transcript = self.root / "cursor-transcript.jsonl"
@@ -924,6 +1002,7 @@ class LocalSessionTests(unittest.TestCase):
     setUp = SessionInputTests.setUp
     tearDown = SessionInputTests.tearDown
     _write_jsonl = staticmethod(SessionInputTests._write_jsonl)
+    _write_zstd_jsonl = staticmethod(SessionInputTests._write_zstd_jsonl)
     _write_cursor_store = staticmethod(SessionInputTests._write_cursor_store)
     _write_antigravity_store = staticmethod(SessionInputTests._write_antigravity_store)
     def _five_roots(self) -> None:
@@ -945,6 +1024,23 @@ class LocalSessionTests(unittest.TestCase):
         self._write_jsonl(self.root / ".grok" / "sessions" / "one" / "prompt_history.jsonl",
                           [{"session_id": "grok-one", "timestamp": "2026-07-14T10:00:00Z", "prompt": "hi", "is_bash": False}])
 
+    def test_antigravity_sibling_brains_prefer_full_after_compaction(self) -> None:
+        expected = []
+        for name in ("antigravity-cli", "antigravity-ide", "antigravity-backup"):
+            logs = self.root / ".gemini" / name / "brain" / name / ".system_generated" / "logs"
+            full = logs / "transcript_full.jsonl"
+            compact = logs / "transcript.jsonl"
+            self._write_jsonl(full, [{"source": "user_explicit", "content": "before compact"},
+                                     {"source": "model", "content": "after compact"}])
+            self._write_jsonl(compact, [{"source": "model", "content": "summary"}])
+            expected.append(full)
+        discovery = discover_local_session_inputs(self.root, tool="antigravity")
+        self.assertEqual({source.path for source in discovery.sources}, {path.resolve() for path in expected})
+        self.assertEqual(set(analyze_module._antigravity_cli_transcript_paths(self.root / ".gemini" / "antigravity-cli")), set(expected))
+        expected[0].unlink()
+        discovery = discover_local_session_inputs(self.root, tool="antigravity")
+        self.assertIn(expected[0].with_name("transcript.jsonl").resolve(), {source.path for source in discovery.sources})
+
     def test_local_selects_roots_and_top_five_per_tool(self) -> None:
         self._five_roots()
         for index in range(100):
@@ -963,6 +1059,19 @@ class LocalSessionTests(unittest.TestCase):
         self.assertEqual([row["tool_rank"] for row in result["top_sessions"] if row["tool"] == "codex"], [1, 2, 3, 4, 5])
         self.assertEqual(report["top_sessions"], result["top_sessions"])
         self.assertEqual(sum("score " in line for line in session_summary_lines(result)), len(result["top_sessions"]))
+
+    def test_local_codex_discovery_includes_compressed_sessions_and_archive(self) -> None:
+        records = [{"session_id": "compressed-local", "role": "user", "content": "hello"}]
+        session_file = self.root / ".codex" / "sessions" / "2026" / "one.jsonl.zst"
+        archive_file = self.root / ".codex" / "archived_sessions" / "two.jsonl.zst"
+        self._write_zstd_jsonl(session_file, records)
+        self._write_zstd_jsonl(archive_file, records)
+
+        discovery = discover_local_session_inputs(self.root, tool="codex")
+
+        self.assertEqual(discovery.files_examined, 2)
+        self.assertEqual({source.path for source in discovery.sources}, {session_file.resolve(), archive_file.resolve()})
+        self.assertTrue(all(source.format == "JSONL (Zstandard)" for source in discovery.sources))
 
     def test_local_limit_filters_selector_and_missing_roots(self) -> None:
         self._five_roots()

@@ -25,14 +25,14 @@ Add the catalog baseline deterministically, then complete the code surfaces that
 Run from the repository root. Omit `--write` for a preview.
 
 ```bash
-python skills/blacklight-add-agent-artifact/scripts/scaffold.py --write add-agent \
+uv run --locked python skills/blacklight-add-agent-artifact/scripts/scaffold.py --write add-agent \
   --tool example_agent \
   --root-path .example-agent \
   --config-path .example-agent/settings.json
 ```
 
 ```bash
-python skills/blacklight-add-agent-artifact/scripts/scaffold.py --write add-artifact \
+uv run --locked python skills/blacklight-add-agent-artifact/scripts/scaffold.py --write add-artifact \
   --tool cursor \
   --artifact-id cursor.example_state \
   --family workspace \
@@ -71,8 +71,8 @@ Do not claim a broader level than the implemented and tested surfaces establish.
 Run the focused gates:
 
 ```bash
-python blacklight-scout/catalog/generate_targets.py
-python -m unittest blacklight.tests.test_targets_catalog blacklight.tests.test_rules_content -v
+uv run --locked python blacklight-scout/catalog/generate_targets.py
+uv run --locked python -m unittest blacklight.tests.test_targets_catalog blacklight.tests.test_rules_content -v
 ```
 
 Then run tests for every semantic surface changed. Review `git diff` for generated-file drift, cross-platform path parity, canonical family alignment, secret leakage, and unrelated edits.

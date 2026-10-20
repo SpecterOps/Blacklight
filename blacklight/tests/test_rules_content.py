@@ -79,7 +79,8 @@ class BlacklightRulesContentTests(unittest.TestCase):
             self.assertTrue(artifacts, tool)
             for item in artifacts:
                 with self.subTest(artifact=item["id"]):
-                    self.assertEqual(item["assessment_coverage"], "explicitly_assessed")
+                    expected = "intentionally_deferred" if item["path_kind"] == "glob" else "explicitly_assessed"
+                    self.assertEqual(item["assessment_coverage"], expected)
                     self.assertNotIn("blacklight.analyze.run_session_detail", item["confirmed_by"])
         windows_roots = self.catalog["detection_boundaries"]["windows_roots"]
         posix_roots = self.catalog["detection_boundaries"]["posix_roots"]
@@ -96,7 +97,10 @@ class BlacklightRulesContentTests(unittest.TestCase):
             for item in artifacts:
                 with self.subTest(artifact=item["id"]):
                     self.assertEqual(item["assessment_coverage"], "explicitly_assessed")
-                    self.assertNotIn("blacklight.analyze.run_session_detail", item["confirmed_by"])
+                    if item["relative_path"] == ".local/share/opencode/opencode.db":
+                        self.assertIn("blacklight.analyze.run_session_detail", item["confirmed_by"])
+                    else:
+                        self.assertNotIn("blacklight.analyze.run_session_detail", item["confirmed_by"])
         windows_roots = self.catalog["detection_boundaries"]["windows_roots"]
         posix_roots = self.catalog["detection_boundaries"]["posix_roots"]
         self.assertIn("\\.kiro", windows_roots)

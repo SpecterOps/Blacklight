@@ -2,17 +2,16 @@ from __future__ import annotations
 
 import json
 import re
-import shutil
 import sqlite3
-import tempfile
 from collections import Counter
-from contextlib import closing
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterable
 
 from .progress import AnalysisProgress, ProgressCallback
+from .sqlite_input import sqlite_snapshot
 
 from .common import (
     add_parse_error,
@@ -78,9 +77,7 @@ def _source_paths(grouped: dict[str, dict[str, list[Path]]], tool: str, *, forma
 
 
 def _sqlite_schema_counts(path: Path) -> dict[str, Any]:
-    uri = path.resolve().as_uri() + "?mode=ro&immutable=1"
-    with closing(sqlite3.connect(uri, uri=True)) as connection:
-        connection.execute("PRAGMA query_only = ON")
+    with sqlite_snapshot(path) as connection:
         tables = [str(row[0]) for row in connection.execute("select name from sqlite_master where type = 'table' order by name")]
         counts: dict[str, int | None] = {}
         for table in tables:
@@ -136,12 +133,8 @@ def _cursor_store_records_from_connection(connection: sqlite3.Connection) -> tup
 
 
 def _cursor_store_records(path: Path) -> tuple[dict[str, Any], list[dict[str, Any]], int, int, bool]:
-    with tempfile.TemporaryDirectory(prefix="blacklight-cursor-store-", ignore_cleanup_errors=True) as tempdir:
-        temp_path = Path(tempdir) / path.name
-        shutil.copy2(path, temp_path)
-        uri = f"{temp_path.resolve().as_uri()}?mode=ro&immutable=1"
-        with closing(sqlite3.connect(uri, uri=True)) as connection:
-            metadata, records, blob_count, malformed_blob_count = _cursor_store_records_from_connection(connection)
+    with sqlite_snapshot(path) as connection:
+        metadata, records, blob_count, malformed_blob_count = _cursor_store_records_from_connection(connection)
     return metadata, records, blob_count, malformed_blob_count, True
 
 
@@ -161,7 +154,8 @@ def _top_level_value(record: dict[str, Any], keys: Iterable[str]) -> Any:
 
 
 def _codex_rollout_session_id(path: Path) -> str | None:
-    match = re.search(r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$", path.stem, re.IGNORECASE)
+    stem = path.name[:-len(".jsonl.zst")] if path.name.lower().endswith(".jsonl.zst") else path.stem
+    match = re.search(r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$", stem, re.IGNORECASE)
     return match.group(1) if match else None
 
 
@@ -214,6 +208,7 @@ def _jsonl_paths(root: Path | None, relative_paths: Iterable[str]) -> list[Path]
             paths.append(path)
         elif path.is_dir():
             paths.extend(sorted(path.rglob("*.jsonl")))
+            paths.extend(sorted(path.rglob("*.jsonl.zst")))
     return paths
 
 
@@ -231,9 +226,18 @@ def _antigravity_cli_conversation_id(path: Path) -> str | None:
 def _antigravity_cli_transcript_paths(root: Path | None) -> list[Path]:
     if not root:
         return []
-    brain = root / "brain"
     paths: list[Path] = []
-    if brain.is_dir():
+    roots = [root]
+    if root.name in {"antigravity-cli", "antigravity-ide", "antigravity-backup"}:
+        roots += [root.parent / name for name in ("antigravity-cli", "antigravity-ide", "antigravity-backup") if name != root.name]
+    elif root.name == ".gemini":
+        roots = [root / name for name in ("antigravity-cli", "antigravity-ide", "antigravity-backup")]
+    for candidate in roots:
+        if candidate.is_symlink():
+            continue
+        brain = candidate / "brain"
+        if not brain.is_dir() or brain.is_symlink():
+            continue
         for session_dir in sorted(child for child in brain.iterdir() if child.is_dir()):
             logs = session_dir / ".system_generated" / "logs"
             if not logs.is_dir():
@@ -261,7 +265,7 @@ def _cursor_agent_transcript_paths(root: Path | None) -> list[Path]:
     if not root:
         return []
     projects = root / "projects"
-    return sorted(projects.glob("*/agent-transcripts/*/*.jsonl")) if projects.is_dir() else []
+    return sorted(projects.glob("*/agent-transcripts/**/*.jsonl")) if projects.is_dir() else []
 
 
 def _cursor_project_from_agent_transcript(path: Path) -> str | None:
@@ -415,6 +419,9 @@ def _session_role(record: dict[str, Any], tool_name: str | None = None) -> str:
 
 
 def _normalized_session_record(tool_name: str, record: dict[str, Any]) -> tuple[dict[str, Any], str | None]:
+    if tool_name in {"OpenCode", "Muse Code"}:
+        role = {"user": "request", "assistant": "response", "tool": "tool"}.get(record.get("role"))
+        return {"content": record.get("content", "")}, role
     if tool_name != "Codex":
         return record, _session_role(record, tool_name)
     outer_type = str(record.get("type") or "").lower()
@@ -449,6 +456,19 @@ def _attachment_snapshot_count(record: dict[str, Any]) -> int:
     return 1 if value not in (None, "") else 0
 
 
+def _session_records(tool_name: str, path: Path):
+    if tool_name == "Muse Code":
+        from .muse_sessions import iter_muse_records
+        yield from iter_muse_records(path)
+    elif tool_name == "OpenCode":
+        from .opencode_sessions import opencode_records
+        for index, record in enumerate(opencode_records(path), 1):
+            record = {**record, "timestamp": _epoch_ms_to_utc(record.get("timestamp"))}
+            yield index, record, None
+    else:
+        yield from iter_jsonl(path)
+
+
 def _collect_sessions(tool_name: str, paths: list[Path], progress: AnalysisProgress | None = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     sessions: dict[str, SessionMetric] = {}
     artifacts: list[dict[str, Any]] = []
@@ -459,7 +479,7 @@ def _collect_sessions(tool_name: str, paths: list[Path], progress: AnalysisProgr
         parse_error_count = 0
         source_session_id = _codex_rollout_session_id(path) if tool_name == "Codex" else None
         try:
-            for line_number, record, error in iter_jsonl(path):
+            for line_number, record, error in _session_records(tool_name, path):
                 if error:
                     parse_error_count += 1
                     errors.append({"path": str(path), "error": f"line {line_number}: {error}"})
@@ -611,6 +631,34 @@ def _collect_cursor_sessions(paths: list[Path], progress: AnalysisProgress | Non
     return session_rows, artifacts, errors
 
 
+def _cursor_transcript_records(path: Path):
+    # CLI stream results repeat assistant text, and partial streams include flushes.
+    cli = partial = has_assistant = False
+    for _, record, _ in iter_jsonl(path):
+        record = record or {}
+        cli |= record.get("type") == "system" and record.get("subtype") == "init" and "apiKeySource" in record
+        if record.get("type") == "assistant":
+            has_assistant = True
+            partial |= "timestamp_ms" in record
+    for line, record, error in iter_jsonl(path):
+        if error or not cli:
+            yield line, record, error
+            continue
+        record = record or {}
+        kind = record.get("type")
+        if kind == "assistant" and partial and ("timestamp_ms" not in record or "model_call_id" in record):
+            continue
+        if kind in {"user", "assistant"} and isinstance(record.get("message"), dict):
+            record = {**record, **record["message"]}
+        elif kind == "tool_call":
+            record = {**record, "role": "tool"}
+        elif kind == "result" and not has_assistant:
+            record = {**record, "role": "assistant", "content": record.get("result", "")}
+        else:
+            continue
+        yield line, record, None
+
+
 def _collect_cursor_agent_transcript_sessions(paths: list[Path], progress: AnalysisProgress | None = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     session_rows: list[dict[str, Any]] = []
     artifacts: list[dict[str, Any]] = []
@@ -625,12 +673,14 @@ def _collect_cursor_agent_transcript_sessions(paths: list[Path], progress: Analy
             project = _cursor_project_from_agent_transcript(path)
             if project:
                 session.project_or_cwd.add(project)
-            for line_number, record, error in iter_jsonl(path):
+            for line_number, record, error in _cursor_transcript_records(path):
                 if error:
                     parse_error_count += 1
                     errors.append({"path": str(path), "error": f"line {line_number}: {error}"})
                     continue
                 record = record or {}
+                if record.get("session_id"):
+                    session.session_id = str(record["session_id"])
                 session.line_count += 1
                 session.attachment_snapshot_count += _attachment_snapshot_count(record)
                 session.add_timestamp(first_value(record, ("timestamp", "created_at", "createdAt", "updated_at", "updatedAt", "ts")))
@@ -1136,6 +1186,8 @@ def run_session_detail(
     progress.start("Parsing sessions", total)
     tools: list[dict[str, Any]] = []
     for tool_name, root, paths in (
+        ("Muse Code", roots.target_root if grouped_sources and grouped_sources.get("Muse Code") else None,
+         _source_paths(grouped_sources, "Muse Code") if grouped_sources is not None else []),
         ("Codex", roots.target_root if grouped_sources and grouped_sources.get("Codex") else roots.codex_root,
          _source_paths(grouped_sources, "Codex", format_name="JSONL") if grouped_sources is not None else _jsonl_paths(roots.codex_root, ("session_index.jsonl", "history.jsonl", "sessions", "archived_sessions"))),
         ("Claude Code", roots.target_root if grouped_sources and grouped_sources.get("Claude Code") else roots.claude_root,
@@ -1145,7 +1197,16 @@ def run_session_detail(
             continue
         tool = tool_result(tool_name, root)
         session_rows, artifacts, errors = _collect_sessions(tool_name, paths, progress=progress)
-        if not paths:
+        sqlite_paths = _source_paths(grouped_sources, tool_name, format_name="SQLite") if grouped_sources is not None else []
+        for index, path in enumerate(progress.items(sqlite_paths)):
+            try:
+                metadata = _sqlite_schema_counts(path)
+                metadata["rollout_files_verified"] = False
+                artifacts.append(artifact(f"codex.state.{index}", tool_name, path, "Sessions / Chats", "SQLite", exists=True, parsed=True, metadata=metadata))
+            except (OSError, sqlite3.Error) as exc:
+                errors.append({"path": str(path), "error": str(exc)})
+                artifacts.append(artifact(f"codex.state.{index}", tool_name, path, "Sessions / Chats", "SQLite", exists=True, parsed=False, parse_error=str(exc)))
+        if not paths and not sqlite_paths:
             tool["artifacts"].append(artifact(f"{tool_name.lower().replace(' ', '_')}.session_detail", tool_name, root / "history.jsonl", "Sessions / Chats", "JSONL", exists=False, parsed=False))
         else:
             tool["artifacts"].extend(artifacts)
@@ -1216,6 +1277,15 @@ def run_session_detail(
         aggregate = _session_aggregate(session_rows)
         tool["findings"].append(finding("Grok", "grok.session_detail", "session_volume_structure", "Grok.sessions", {"aggregate": aggregate, "sessions": session_rows}))
         tools.append(tool)
+    if grouped_sources and grouped_sources.get("OpenCode"):
+        from .opencode_sessions import collect_opencode_sessions
+
+        tool = tool_result("OpenCode", roots.target_root)
+        rows, artifacts, errors = collect_opencode_sessions(_source_paths(grouped_sources, "OpenCode"), progress)
+        tool["artifacts"].extend(artifacts)
+        tool["parse_errors"].extend(errors)
+        tool["findings"].append(finding("OpenCode", "opencode.session_detail", "session_volume_structure", "OpenCode.sessions", {"aggregate": _session_aggregate(rows), "sessions": rows}))
+        tools.append(tool)
     summary = summarize_tools(tools)
     aggregates = [item["findings"][0]["value"]["aggregate"] for item in tools if item["findings"]]
     summary.update(
@@ -1258,26 +1328,28 @@ class IndicatorRule:
     pattern: re.Pattern[str]
     weight: int
     secret: bool = False
+    # Any match must contain at least one literal (lowercase for IGNORECASE).
+    required_literals: tuple[str, ...] = ()
 
 
 INDICATOR_RULES = [
-    IndicatorRule("credential.assignment", "credential_secret", re.compile(r"\b(?:api[-_ ]?key|access[-_ ]?token|token|secret|password|passwd|pwd|authorization)\b\s*(?:[:=]|=>|-eq|\bis\b)\s*[\"']?(?:bearer\s+)?[A-Za-z0-9._~+/=:,@-]{8,}[\"']?", re.I), 10, True),
-    IndicatorRule("credential.aws_access_key", "credential_secret", re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b"), 10, True),
-    IndicatorRule("credential.private_key_header", "credential_secret", re.compile(r"^\s*-----BEGIN (?:RSA |DSA |EC |ENCRYPTED |OPENSSH )?PRIVATE KEY-----\s*$", re.I | re.M), 10, True),
-    IndicatorRule("credential.connection_string", "credential_secret", re.compile(r"\b(?:(?:mongodb(?:\+srv)?|postgres(?:ql)?|mysql|redis|rediss|mssql|sqlserver)://[^\s'\"<>]+|(?:server|data source|host|hostname|addr|address)\s*=\s*[^;\r\n]+;[^\r\n]{0,300})", re.I), 10, True),
-    IndicatorRule("internal.private_ipv4", "internal_host", re.compile(r"\b(?:10\.(?:25[0-5]|2[0-4]\d|1?\d?\d)\.(?:25[0-5]|2[0-4]\d|1?\d?\d)\.(?:25[0-5]|2[0-4]\d|1?\d?\d)|172\.(?:1[6-9]|2\d|3[0-1])\.(?:25[0-5]|2[0-4]\d|1?\d?\d)\.(?:25[0-5]|2[0-4]\d|1?\d?\d)|192\.168\.(?:25[0-5]|2[0-4]\d|1?\d?\d)\.(?:25[0-5]|2[0-4]\d|1?\d?\d))\b"), 5),
-    IndicatorRule("internal.localhost", "internal_host", re.compile(r"\b(?:localhost|127\.0\.0\.1|::1)\b", re.I), 3),
-    IndicatorRule("internal.domain", "internal_host", re.compile(r"\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:local|internal|corp|lan|intranet)\b", re.I), 5),
-    IndicatorRule("internal.named_host", "internal_host", re.compile(r"\b(?:dev|stage|stg|prod|admin|vpn|dc|ldap|sso|jump|bastion)[-_][a-z0-9][a-z0-9-]{0,62}\b(?:\.[a-z0-9.-]+)?", re.I), 2),
-    IndicatorRule("cloud.aws_arn", "cloud_identity", re.compile(r"\barn:(?:aws|aws-cn|aws-us-gov):[a-z0-9-]+:[^:\s]*:[^:\s]*:[^\s'\"<>]+", re.I), 8),
-    IndicatorRule("cloud.aws_account", "cloud_identity", re.compile(r"\b(?:aws[_ -]?account(?:[_ -]?id)?|account[_ -]?id)\b\s*[:=]\s*[\"']?\d{12}[\"']?", re.I), 6),
-    IndicatorRule("cloud.azure_guid", "cloud_identity", re.compile(r"\b(?:tenant|subscription|client|application)(?:[_ -]?(?:id|guid))?\b\s*[:=]\s*[\"'{(]?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[\"')}]?", re.I), 6),
-    IndicatorRule("cloud.gcp_service_account", "cloud_identity", re.compile(r"\b[a-z0-9-]{6,30}@[a-z][a-z0-9-]{4,62}\.iam\.gserviceaccount\.com\b", re.I), 7),
-    IndicatorRule("network.host_port", "network_target", re.compile(r"\b(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*)\:(?:6553[0-5]|655[0-2]\d|65[0-4]\d{2}|6[0-4]\d{3}|[1-5]?\d{1,4})\b"), 4),
-    IndicatorRule("network.ip_port", "network_target", re.compile(r"\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\:(?:6553[0-5]|655[0-2]\d|65[0-4]\d{2}|6[0-4]\d{3}|[1-5]?\d{1,4})\b"), 5),
-    IndicatorRule("source_control.git_remote", "source_control", re.compile(r"\b(?:git@[\w.-]+:[^\s'\"<>]+\.git|ssh://(?:[^@\s]+@)?[\w.-]+(?::\d+)?/[^\s'\"<>]+\.git|https?://[\w.-]+/[^\s'\"<>]+\.git)\b", re.I), 4),
-    IndicatorRule("agent_fs.posix_agent_root", "agent_filesystem", re.compile(r"(?<![\w/.-])(?:~|\$HOME|/Users/[A-Za-z0-9._-]+|/home/[A-Za-z0-9._-]+)/(?:\.codex|\.claude|\.cursor|\.gemini/antigravity-cli|\.grok)(?:/[^\s'\"<>)]{1,240})?", re.I), 3),
-    IndicatorRule("agent_fs.windows_agent_root", "agent_filesystem", re.compile(r"(?i)(?<![\w\\.-])(?:%USERPROFILE%|[A-Z]:\\Users\\[A-Za-z0-9._ -]+)\\(?:\.codex|\.claude|\.cursor|\.gemini\\antigravity-cli|\.grok)(?:\\[^\s'\"<>)]{1,240})?"), 3),
+    IndicatorRule("credential.assignment", "credential_secret", re.compile(r"\b(?:api[-_ ]?key|access[-_ ]?token|token|secret|password|passwd|pwd|authorization)\b\s*(?:[:=]|=>|-eq|\bis\b)\s*[\"']?(?:bearer\s+)?[A-Za-z0-9._~+/=:,@-]{8,}[\"']?", re.I), 10, True, required_literals=('api', 'access', 'token', 'secret', 'password', 'passwd', 'pwd', 'authorization')),
+    IndicatorRule("credential.aws_access_key", "credential_secret", re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b"), 10, True, required_literals=('AKIA', 'ASIA')),
+    IndicatorRule("credential.private_key_header", "credential_secret", re.compile(r"^\s*-----BEGIN (?:RSA |DSA |EC |ENCRYPTED |OPENSSH )?PRIVATE KEY-----\s*$", re.I | re.M), 10, True, required_literals=('private key-----',)),
+    IndicatorRule("credential.connection_string", "credential_secret", re.compile(r"\b(?:(?:mongodb(?:\+srv)?|postgres(?:ql)?|mysql|redis|rediss|mssql|sqlserver)://[^\s'\"<>]+|(?:server|data source|host|hostname|addr|address)\s*=\s*[^;\r\n]+;[^\r\n]{0,300})", re.I), 10, True, required_literals=('://', '=')),
+    IndicatorRule("internal.private_ipv4", "internal_host", re.compile(r"\b(?:10\.(?:25[0-5]|2[0-4]\d|1?\d?\d)\.(?:25[0-5]|2[0-4]\d|1?\d?\d)\.(?:25[0-5]|2[0-4]\d|1?\d?\d)|172\.(?:1[6-9]|2\d|3[0-1])\.(?:25[0-5]|2[0-4]\d|1?\d?\d)\.(?:25[0-5]|2[0-4]\d|1?\d?\d)|192\.168\.(?:25[0-5]|2[0-4]\d|1?\d?\d)\.(?:25[0-5]|2[0-4]\d|1?\d?\d))\b"), 5, required_literals=('10.', '172.', '192.168.')),
+    IndicatorRule("internal.localhost", "internal_host", re.compile(r"\b(?:localhost|127\.0\.0\.1|::1)\b", re.I), 3, required_literals=('localhost', '127.0.0.1', '::1')),
+    IndicatorRule("internal.domain", "internal_host", re.compile(r"\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:local|internal|corp|lan|intranet)\b", re.I), 5, required_literals=('.local', '.internal', '.corp', '.lan', '.intranet')),
+    IndicatorRule("internal.named_host", "internal_host", re.compile(r"\b(?:dev|stage|stg|prod|admin|vpn|dc|ldap|sso|jump|bastion)[-_][a-z0-9][a-z0-9-]{0,62}\b(?:\.[a-z0-9.-]+)?", re.I), 2, required_literals=('dev', 'stage', 'stg', 'prod', 'admin', 'vpn', 'dc', 'ldap', 'sso', 'jump', 'bastion')),
+    IndicatorRule("cloud.aws_arn", "cloud_identity", re.compile(r"\barn:(?:aws|aws-cn|aws-us-gov):[a-z0-9-]+:[^:\s]*:[^:\s]*:[^\s'\"<>]+", re.I), 8, required_literals=('arn:',)),
+    IndicatorRule("cloud.aws_account", "cloud_identity", re.compile(r"\b(?:aws[_ -]?account(?:[_ -]?id)?|account[_ -]?id)\b\s*[:=]\s*[\"']?\d{12}[\"']?", re.I), 6, required_literals=('account',)),
+    IndicatorRule("cloud.azure_guid", "cloud_identity", re.compile(r"\b(?:tenant|subscription|client|application)(?:[_ -]?(?:id|guid))?\b\s*[:=]\s*[\"'{(]?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[\"')}]?", re.I), 6, required_literals=('tenant', 'subscription', 'client', 'application')),
+    IndicatorRule("cloud.gcp_service_account", "cloud_identity", re.compile(r"\b[a-z0-9-]{6,30}@[a-z][a-z0-9-]{4,62}\.iam\.gserviceaccount\.com\b", re.I), 7, required_literals=('.iam.gserviceaccount.com',)),
+    IndicatorRule("network.host_port", "network_target", re.compile(r"\b(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*)\:(?:6553[0-5]|655[0-2]\d|65[0-4]\d{2}|6[0-4]\d{3}|[1-5]?\d{1,4})\b"), 4, required_literals=(':',)),
+    IndicatorRule("network.ip_port", "network_target", re.compile(r"\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\:(?:6553[0-5]|655[0-2]\d|65[0-4]\d{2}|6[0-4]\d{3}|[1-5]?\d{1,4})\b"), 5, required_literals=(':',)),
+    IndicatorRule("source_control.git_remote", "source_control", re.compile(r"\b(?:git@[\w.-]+:[^\s'\"<>]+\.git|ssh://(?:[^@\s]+@)?[\w.-]+(?::\d+)?/[^\s'\"<>]+\.git|https?://[\w.-]+/[^\s'\"<>]+\.git)\b", re.I), 4, required_literals=('.git',)),
+    IndicatorRule("agent_fs.posix_agent_root", "agent_filesystem", re.compile(r"(?<![\w/.-])(?:~|\$HOME|/Users/[A-Za-z0-9._-]+|/home/[A-Za-z0-9._-]+)/(?:\.codex|\.claude|\.cursor|\.gemini/antigravity-cli|\.grok)(?:/[^\s'\"<>)]{1,240})?", re.I), 3, required_literals=('.codex', '.claude', '.cursor', 'antigravity-cli', '.grok')),
+    IndicatorRule("agent_fs.windows_agent_root", "agent_filesystem", re.compile(r"(?i)(?<![\w\\.-])(?:%USERPROFILE%|[A-Z]:\\Users\\[A-Za-z0-9._ -]+)\\(?:\.codex|\.claude|\.cursor|\.gemini\\antigravity-cli|\.grok)(?:\\[^\s'\"<>)]{1,240})?"), 3, required_literals=('.codex', '.claude', '.cursor', 'antigravity-cli', '.grok')),
 ]
 
 
@@ -1353,6 +1425,27 @@ def _valid_indicator_match(rule: IndicatorRule, value: str, context: str) -> boo
     if rule.rule_id.startswith("agent_fs."):
         return bool(re.search(r"(?i)(?:\.codex|\.claude|\.cursor|\.grok|antigravity-cli|agent-transcripts|session_index\.jsonl|history\.jsonl|sessions|projects)", clean))
     return True
+
+
+# Python IGNORECASE also equates these Unicode characters with ASCII letters.
+_REGEX_CASE_TRANSLATION = str.maketrans({"İ": "i", "ı": "i", "ſ": "s", "K": "k"})
+
+
+def _indicator_matches(fragment: str) -> tuple[tuple[IndicatorRule, str], ...]:
+    matches = []
+    folded = fragment.lower() if fragment.isascii() else fragment.translate(_REGEX_CASE_TRANSLATION).lower()
+    for rule in INDICATOR_RULES:
+        required = rule.required_literals
+        searchable = folded if rule.pattern.flags & re.I else fragment
+        if required and not any(literal in searchable for literal in required):
+            continue
+        for match in rule.pattern.finditer(fragment):
+            value = match.group(0)
+            context_start = max(0, match.start() - 80)
+            context_end = min(len(fragment), match.end() + 80)
+            if _valid_indicator_match(rule, value, fragment[context_start:context_end]):
+                matches.append((rule, value))
+    return tuple(matches)
 
 
 def _iter_text_fragments(value: Any, path: str = "value", include_strings: bool = False) -> Iterable[tuple[str, str]]:
@@ -1721,12 +1814,14 @@ def _cursor_agent_transcript_high_value_rows(paths: list[Path], progress: Analys
         if project:
             session["project_or_cwd"].add(project)
         try:
-            for line_number, record, error in iter_jsonl(path):
+            for line_number, record, error in _cursor_transcript_records(path):
                 if error:
                     parse_errors += 1
                     errors.append({"path": str(path), "error": f"line {line_number}: {error}"})
                     continue
                 record = record or {}
+                if record.get("session_id"):
+                    session["session_id"] = str(record["session_id"])
                 session["line_count"] += 1
                 timestamp = first_value(record, ("timestamp", "created_at", "createdAt", "updated_at", "updatedAt", "ts"))
                 if timestamp:
@@ -1938,8 +2033,14 @@ def run_session_high_value(
     progress = AnalysisProgress(progress_callback)
     total = sum(len(paths) for formats in grouped_sources.values() for paths in formats.values()) if grouped_sources is not None else None
     progress.start("Scanning indicators", total)
+    # Bound retained text to 256 fragments of at most 64 Ki characters for this scan.
+    cached_indicator_matches = lru_cache(maxsize=256)(_indicator_matches)
     tools: list[dict[str, Any]] = []
     for detail_tool, root, paths in (
+        ("Muse Code", roots.target_root if grouped_sources and grouped_sources.get("Muse Code") else None,
+         _source_paths(grouped_sources, "Muse Code") if grouped_sources is not None else []),
+        ("OpenCode", roots.target_root if grouped_sources and grouped_sources.get("OpenCode") else None,
+         _source_paths(grouped_sources, "OpenCode") if grouped_sources is not None else []),
         ("Codex", roots.target_root if grouped_sources and grouped_sources.get("Codex") else roots.codex_root,
          _source_paths(grouped_sources, "Codex", format_name="JSONL") if grouped_sources is not None else _jsonl_paths(roots.codex_root, ("session_index.jsonl", "history.jsonl", "sessions", "archived_sessions"))),
         ("Claude Code", roots.target_root if grouped_sources and grouped_sources.get("Claude Code") else roots.claude_root,
@@ -1959,7 +2060,7 @@ def run_session_high_value(
             parse_errors = 0
             source_session_id = _codex_rollout_session_id(path) if detail_tool == "Codex" else None
             try:
-                for line_number, record, error in iter_jsonl(path):
+                for line_number, record, error in _session_records(detail_tool, path):
                     if error:
                         parse_errors += 1
                         add_parse_error(tool, path, f"line {line_number}: {error}")
@@ -2027,14 +2128,9 @@ def run_session_high_value(
                         session["scanned_fragment_count"] += 1
                         session["scanned_text_bytes"] += len(fragment.encode("utf-8"))
                         session[_fragment_count_key(role)] += 1
-                        for rule in INDICATOR_RULES:
-                            for match in rule.pattern.finditer(fragment):
-                                value = match.group(0)
-                                context_start = max(0, match.start() - 80)
-                                context_end = min(len(fragment), match.end() + 80)
-                                if not _valid_indicator_match(rule, value, fragment[context_start:context_end]):
-                                    continue
-                                _record_indicator_match(session, rule, value, fragment_path, role)
+                        matches = cached_indicator_matches(fragment) if len(fragment) <= 65_536 else _indicator_matches(fragment)
+                        for rule, value in matches:
+                            _record_indicator_match(session, rule, value, fragment_path, role)
                 tool["artifacts"].append(artifact(artifact_id, detail_tool, path, "Sessions / Chats", "JSONL", exists=True, parsed=True, metadata={"size_bytes": path.stat().st_size, "parse_error_count": parse_errors}))
                 if parse_errors and session_map:
                     affected_sessions = [session for session in session_map.values() if str(path) in session["source_files"]]
@@ -2177,7 +2273,15 @@ _AGGREGATE_SESSION_FILENAMES = {
 
 
 def _is_aggregate_session_file(path: str | Path) -> bool:
-    return Path(path).name.lower() in _AGGREGATE_SESSION_FILENAMES
+    name = Path(path).name.lower()
+    if name.endswith(".jsonl.zst"):
+        name = name[:-4]
+    return name in _AGGREGATE_SESSION_FILENAMES
+
+
+def _is_jsonl_source(path: str | Path) -> bool:
+    name = Path(path).name.lower()
+    return name.endswith(".jsonl") or name.endswith(".jsonl.zst")
 
 
 def _is_subagent_source_path(path: str | Path) -> bool:
@@ -2190,7 +2294,7 @@ def _best_session_source_from_paths(session_id: str, paths: list[str]) -> str | 
     preferred_paths = [path for path in paths if not _is_subagent_source_path(path)] or list(paths)
     for path in preferred_paths:
         candidate = Path(path)
-        if candidate.suffix.lower() == ".jsonl" and candidate.stem == session_id:
+        if _is_jsonl_source(candidate) and candidate.name.lower().removesuffix(".zst").removesuffix(".jsonl") == session_id:
             return str(candidate.resolve())
     for path in preferred_paths:
         candidate = Path(path)
@@ -2198,12 +2302,12 @@ def _best_session_source_from_paths(session_id: str, paths: list[str]) -> str | 
             return str(candidate.resolve())
     for path in preferred_paths:
         candidate = Path(path)
-        if candidate.suffix.lower() == ".jsonl" and candidate.parent.name == session_id:
+        if _is_jsonl_source(candidate) and candidate.parent.name == session_id:
             return str(candidate.resolve())
     non_aggregate_jsonl = [
         path
         for path in preferred_paths
-        if Path(path).suffix.lower() == ".jsonl" and not _is_aggregate_session_file(path)
+        if _is_jsonl_source(path) and not _is_aggregate_session_file(path)
     ]
     if len(non_aggregate_jsonl) == 1:
         return str(Path(non_aggregate_jsonl[0]).resolve())
@@ -2212,7 +2316,7 @@ def _best_session_source_from_paths(session_id: str, paths: list[str]) -> str | 
             return str(Path(path).resolve())
     if non_aggregate_jsonl:
         return str(Path(sorted(non_aggregate_jsonl)[0]).resolve())
-    jsonl_paths = [path for path in paths if Path(path).suffix.lower() == ".jsonl"]
+    jsonl_paths = [path for path in paths if _is_jsonl_source(path)]
     if jsonl_paths:
         return str(Path(sorted(jsonl_paths)[0]).resolve())
     return str(Path(paths[0]).resolve())
@@ -2444,7 +2548,7 @@ def _session_targeting_summary_lines(result: dict[str, Any]) -> list[str]:
         session_source_path = row.get("session_source_path")
         if session_source_path:
             source_path = Path(str(session_source_path))
-            label = "source_jsonl" if source_path.suffix.lower() == ".jsonl" else "source"
+            label = "source_jsonl" if _is_jsonl_source(source_path) else "source"
             lines.append(f"  {label}: {session_source_path}")
     return lines
 

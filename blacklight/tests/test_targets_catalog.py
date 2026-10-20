@@ -97,6 +97,10 @@ class TargetCatalogAlignmentTests(unittest.TestCase):
             ("root", ".local/share/devin/cli/_versions"),
             ("root", ".local/share/devin/cli/_versions/current/bin/devin"),
             ("auth", ".local/share/devin/credentials.toml"),
+            ("sessions", ".local/share/devin/cli/sessions.db"),
+            ("sessions", "AppData/Local/devin/cli/sessions.db"),
+            ("mcp", ".config/devin/mcp_config.json"),
+            ("mcp", "AppData/Roaming/devin/mcp_config.json"),
             ("logs", ".local/share/devin/cli/logs"),
             ("root", ".local/share/cognition"),
             ("root", ".local/share/chisel"),
@@ -151,6 +155,8 @@ class TargetCatalogAlignmentTests(unittest.TestCase):
             ("rules", ".kiro/steering"),
             ("config", ".kiro/hooks"),
             ("sessions", ".kiro/sessions"),
+            ("sessions", ".kiro/sessions/cli"),
+            ("history", ".kiro/memories"),
             ("root", ".local/bin/kiro-cli"),
             ("root", ".local/bin/kiro-cli-chat"),
             ("root", ".local/bin/q"),
@@ -176,6 +182,8 @@ class TargetCatalogAlignmentTests(unittest.TestCase):
             ("root", ".local/share/opencode"),
             ("auth", ".local/share/opencode/auth.json"),
             ("auth", ".local/share/opencode/opencode.db"),
+            ("auth", ".local/share/opencode/opencode.db-wal"),
+            ("auth", ".local/share/opencode/opencode.db-shm"),
             ("logs", ".local/share/opencode/log"),
             ("sessions", ".local/share/opencode/project"),
             ("config", ".config/opencode"),
@@ -206,7 +214,7 @@ class TargetCatalogAlignmentTests(unittest.TestCase):
         self.assertIn('EqualsCi(result.Tool, "opencode")', managed_windows)
         session_input = (self.repo_root / "blacklight" / "session_input.py").read_text(encoding="utf-8").lower()
         self.assertNotIn("kiro", session_input)
-        self.assertNotIn("opencode", session_input)
+        self.assertIn("opencode", session_input)
 
     def test_muse_code_support_is_existence_enum_only(self) -> None:
         expected = {
@@ -249,8 +257,8 @@ class TargetCatalogAlignmentTests(unittest.TestCase):
         self.assertIn('bl_ascii_equal_n(value, value_len, "muse")', native_core)
         self.assertIn('EqualsCi(filter, "muse")', managed_windows)
         session_input = (self.repo_root / "blacklight" / "session_input.py").read_text(encoding="utf-8").lower()
-        self.assertNotIn("muse_code", session_input)
-        self.assertNotIn("muse", session_input)
+        self.assertIn("muse_code", session_input)
+        self.assertIn("muse", session_input)
 
     def test_windows_catalog_covers_core_tool_families(self) -> None:
         windows = self._catalog_tuples("windows")
