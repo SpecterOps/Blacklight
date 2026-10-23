@@ -8,8 +8,18 @@ Run host commands from the repository root with [uv installed](https://docs.astr
 uv sync --locked
 ```
 
-- Choose a release version and update `pyproject.toml`, native and managed executable versions, both Scout release metadata files, `uv.lock` (run `uv lock`), and `CHANGELOG.md` together.
-- Move completed Unreleased notes into a dated release heading before tagging.
+- Bump all version copies and refresh `uv.lock` from the repository root:
+
+```powershell
+uv run python scripts/set_version.py 0.2.7
+```
+
+- The command prepares a dated changelog heading. Add the human-written release notes under it before tagging.
+- Verify all copies match the canonical `pyproject.toml` version:
+
+```powershell
+uv run --locked python scripts/set_version.py --check
+```
 - Regenerate the catalog and commit any source or generated documentation changes:
 
 ```powershell

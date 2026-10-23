@@ -49,6 +49,9 @@ jobs:
           uv run --locked blacklight --help
           uv run --locked blacklight sessions --help
 
+      - name: Check release version copies
+        run: uv run --locked python scripts/set_version.py --check
+
       - name: Verify tag matches embedded release version
         if: startsWith(github.ref, 'refs/tags/v')
         env:
