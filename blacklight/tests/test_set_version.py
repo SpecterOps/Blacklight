@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shutil
 import tempfile
 import unittest
@@ -44,24 +45,30 @@ class SetVersionTests(unittest.TestCase):
 
     def test_check_reports_stale_copy(self) -> None:
         root = self.fixture()
+        version = set_version.project_version(root)
         native = root / "blacklight-scout/native/ai_path_scout_windows.c"
-        native.write_text(native.read_text(encoding="utf-8").replace('"0.2.6"', '"0.2.5"', 1), encoding="utf-8")
+        content = set_version.read_text(native)
+        set_version.write_text(native, content.replace(f'#define BL_SCOUT_VERSION "{version}"',
+                                                       f'#define BL_SCOUT_VERSION "{version}0"', 1))
 
-        errors = set_version.check(root, set_version.project_version(root))
+        errors = set_version.check(root, version)
 
         self.assertTrue(any("ai_path_scout_windows.c" in error for error in errors))
 
     def test_check_reports_missing_changelog_heading(self) -> None:
         root = self.fixture()
+        version = set_version.project_version(root)
         changelog = root / "CHANGELOG.md"
-        changelog.write_text(changelog.read_text(encoding="utf-8").replace("## [0.2.6] - 2026-10-20", "## [0.2.5] - 2026-10-15"), encoding="utf-8")
+        content = set_version.read_text(changelog)
+        set_version.write_text(changelog, re.sub(rf"(?m)^## \[{re.escape(version)}\] - [^\r\n]+", "", content))
 
-        errors = set_version.check(root, set_version.project_version(root))
+        errors = set_version.check(root, version)
 
         self.assertTrue(any("CHANGELOG.md" in error for error in errors))
 
     def test_update_prepares_dated_heading(self) -> None:
         root = self.fixture()
+        (root / "CHANGELOG.md").write_bytes(b"# Changelog\r\n\r\n## [Unreleased]\r\n")
         heading = set_version.expected_changelog(root, "0.2.7", date(2026, 10, 23))
 
         self.assertIn("## [Unreleased]\r\n## [0.2.7] - 2026-10-23", heading)

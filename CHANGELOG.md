@@ -6,11 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-11-24
+
 ### Added
 
 - Parse Antigravity conversation indexes and expand Antigravity artifact inventory coverage.
 - Inventory Cursor IDE global/workspace databases and SQLite companions across platforms, plus bounded project terminal and agent-tool output paths. Content parsing and worker logs remain deferred.
-
 - Catalog Cursor CLI subagent session transcripts under `.cursor/projects/*/agent-transcripts/*/subagents/**/*.jsonl` (Cursor CLI v2026.10.17 layout). Session Analysis already discovers these via the recursive agent-transcripts glob; the confirmed-artifact row keeps Scout/Rules/matrix coverage aligned with parent conversation transcripts.
 - Scout enumerates Devin session SQLite paths (`sessions.db` plus `-wal`/`-shm`) and `mcp_config.json` defaults, plus Kiro `~/.kiro/memories` and `~/.kiro/sessions/cli`.
 - Scout runtime overlays for relocatable env roots (existence/path enum only): `DEVIN_SESSIONS_DIR`, `DEVIN_SESSION_STORE=files`, `KIRO_HOME`, and `KIRO_SESSIONS_DIR`. Assessment summary reports when those variables are set so empty default paths are not misread as absence.
@@ -18,11 +19,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- Make macOS/Linux Scout output compact by default; retain detailed path inventory behind standalone `--verbose`, group Cursor database companions, and show one newest scanned session per tool.
-
-- Removed session indicator scanning, its second parsing pass, indicator-based target reasons, and the exported Python `run_session_high_value` API. JSON session rows no longer include `indicator_categories` or `high_value_detail`; report summaries no longer include indicator/match totals or high-value scores. Scout credential-artifact inventory is unchanged.
+- macOS and Linux Scout now show compact output by default. Use `--verbose` with standalone Scout for the full path inventory. Compact output groups Cursor database companions and shows the newest scanned session per tool.
 - Replaced session scoring with `activity-v1`: 40 points for captured size, 30 for logical message volume, 20 for recency, and 10 for recent same-tool/project session frequency. Smooth diminishing returns replace early component caps. Displayed scores are integers from 0 through 99; ranking uses unrounded totals.
 - Added the scoring formula and UTC reference time to JSON outputs, per-session inputs and point contributions, and the formula in text reports. Documented constants, examples, missing-data behavior, and selected-input frequency limits in the session analysis guide. Session reports now declare `sensitivity_scoring_included: false`.
+
+### Removed
+
+- Removed session indicator scanning, indicator-based target reasons, and the Python `run_session_high_value` API. JSON session rows drop `indicator_categories` and `high_value_detail`. Report summaries drop indicator and match totals and high-value scores.
 
 ### Documentation
 
