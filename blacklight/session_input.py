@@ -489,7 +489,12 @@ def _inspect_session_path(result: SessionInputDiscovery, path: Path, hint: str |
     except OSError as exc:
         result.issues.append(SessionInputIssue(path.resolve(), "parse_failed", f"read failed: {exc}"))
         return
-    if header == b"SQLite format 3\x00" or _codex_state_name(path):
+    if path.name in {"conversation_metadata.json", "jetbox_summaries_proto.pb"}:
+        if hint and hint != "Antigravity CLI":
+            detected = SessionInputIssue(path.resolve(), "unsupported", "Antigravity index incompatible with tool hint")
+        else:
+            detected = _source(path, "Antigravity CLI", "conversation_index", "Protobuf" if path.suffix == ".pb" else "JSON", "moderate", "recognized Antigravity conversation index filename", "antigravity_index")
+    elif header == b"SQLite format 3\x00" or _codex_state_name(path):
         detected = (SessionInputIssue(path.resolve(), "skipped_non_session", "Grok search database is outside session scope")
                     if grok_directory_file else _detect_sqlite(path, hint))
     elif path.name.lower().endswith(".jsonl.zst") or path.suffix.lower() in {".jsonl", ".json", ".bin", ".txt", ""}:
@@ -538,7 +543,7 @@ def _local_candidate_paths(home: Path, tool: str) -> tuple[Path, list[Path]]:
         root = home / ".gemini" / "antigravity-cli"
         if root.is_symlink() or root.parent.is_symlink():
             return root, []
-        paths = [root / "history.jsonl", root / "conversation_summaries.db"]
+        paths = [root / "history.jsonl", root / "conversation_summaries.db", root / "jetbox_summaries_proto.pb", root / "cache" / "conversation_metadata.json"]
         paths += list((root / "conversations").glob("*.db"))
         for name in ("antigravity-cli", "antigravity-ide", "antigravity-backup"):
             sibling = root.parent / name

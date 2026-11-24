@@ -27,7 +27,7 @@ rg -n 'codex|claude_code|cursor|antigravity_cli' blacklight-scout
 ## Analyze support
 
 - Separate discovery from parsing. Do not add parser evidence to `confirmed_by` until a parser actually consumes the artifact.
-- Update config, credential metadata, session detail, high-value, scoring, targeting, and combined-output logic only when applicable.
+- Update config, credential metadata, session detail, activity-based scoring, targeting, and combined-output logic only when applicable.
 - Preserve the privacy boundary: no raw secrets or chat text in metadata-facing outputs.
 - Update `docs/session-analysis-schema.md` and focused fixtures when emitted shapes or supported tool unions change.
 - Ensure partial packages do not invent empty tool records.

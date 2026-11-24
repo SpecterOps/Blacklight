@@ -11,14 +11,14 @@ Treat session data as sensitive by default. It can contain user prompts, model r
 
 Expect a JSON and a text report in the same output directory. Read both before drawing conclusions.
 
-- Treat JSON as the structured source for counts, session records, score distributions, response states, indicator categories, parsing coverage, and report content-policy fields.
+- Treat JSON as the structured source for counts, session records, score distributions, response states, scoring components, parsing coverage, and report content-policy fields.
 - Treat the text report as the human-readable companion. Use it to confirm report scope, collection context, headings, and narrative explanations.
 - Reconcile material differences between the two outputs. Prefer the JSON for exact metrics, identify a report-generation inconsistency when the text conflicts with it, and do not silently combine mismatched runs.
 - Avoid reproducing raw paths, titles, matched values, hashes, prompts, responses, or credential-like material from either format unless explicitly necessary and permitted.
 
 ## Choose the source
 
-Use an exported report whenever it answers the question. For example, Blacklight reports under a directory such as `.../codex/` can provide session-level metadata and indicators without opening raw session data.
+Use an exported report whenever it answers the question. For example, Blacklight reports under a directory such as `.../codex/` can provide session-level metadata and score explanations without opening raw session data.
 
 Inspect an actual `.codex` root only when the user explicitly authorizes that path and raw detail is necessary. Treat it as a higher-risk source: enumerate narrowly, inspect the minimum files needed, and avoid recursively reading or copying the root by default.
 
@@ -28,7 +28,7 @@ Do not access another user, a shared mount, a backup, or a cloud-synced location
 
 1. Confirm the purpose, source path, permitted audience, and whether the data is client, regulated, or otherwise sensitive.
 2. Apply the organization’s data-classification, retention, access-control, incident, and client-contract policies. Ask for direction if the required handling is unknown.
-3. Minimize collection. Start with counts, timestamps, statuses, sizes, categories, and report-provided indicators. Open raw prompts, responses, or tool payloads only when essential to the stated question.
+3. Minimize collection. Start with counts, timestamps, statuses, sizes, and scoring components. Open raw prompts, responses, or tool payloads only when essential to the stated question.
 4. Redact or summarize sensitive values. Do not reproduce secrets, access tokens, credentials, personal data, private source code, full prompts/responses, or unique client identifiers in chat, reports, tickets, or commits.
 5. State the scope and limitations: report versus raw artifacts, files reviewed, time range, redactions, and any uninspected data.
 
@@ -42,18 +42,15 @@ For client data, use only approved controls. A managed/private deployment such a
 
 Use report metadata to formulate prioritized, evidence-labeled pivots for an authorized security assessment. Separate observations, hypotheses, and validation actions.
 
-Prioritize sessions or artifacts by score, recency, activity volume, response availability, and distinct indicator categories. Explain what each category can suggest without treating it as proof:
+Prioritize sessions or artifacts by the activity-based score, recency, captured bytes, logical message count, recent project session frequency, and response availability. Consult `scoring` in the JSON and the [scoring formula](../../docs/session-analysis.md#session-score-activity-v1) for the exact weights and reference time. Frequency counts cover selected input only.
 
-- `credential_secret`: possible secret references; validate handling and exposure through approved procedures, not by using or disclosing a suspected value.
-- `cloud_identity`: possible cloud-account or identity context; validate authorization, identity boundaries, and intended access paths.
-- `internal_host` and `network_target`: possible internal services or reachable targets; validate scope, ownership, and permitted connectivity before further assessment.
-- `source_control` and `agent_filesystem`: possible code, workspace, or agent-data context; use them to refine scope and identify where to seek corroborating evidence.
-
-Recommend the least-invasive next action that can validate the hypothesis. Do not represent a category match, high score, or session content as a confirmed credential, accessible host, privilege, or exploitable path.
+Current reports do not scan for indicators or estimate sensitivity. A high score is a review priority, not proof of a credential, accessible host, privilege, or exploitable path. Recommend the least-invasive next action that can validate the hypothesis.
 
 ## Analyze and communicate
 
-Separate observations from interpretation. Report useful patterns such as session volume, timing, request/response/tool-event counts, failures, parse errors, data-volume outliers, repeated indicator categories, and differences across tools or projects. Explain uncertainty and avoid claiming raw-content facts from metadata alone.
+Separate observations from interpretation. Report useful patterns such as session volume, timing, request/response/tool-event counts, failures, parse errors, data-volume outliers, recent project session frequency, and differences across tools or projects. Explain uncertainty and avoid claiming raw-content facts from metadata alone.
+
+For Claude Code transcripts from 2.1.299 onward, @-mentioned PDF bytes are no longer saved in the session JSONL. Absence of PDF content is not evidence that the PDF was unread; treat it as a format change, not a negative finding.
 
 Use this compact structure unless the user requests another format:
 

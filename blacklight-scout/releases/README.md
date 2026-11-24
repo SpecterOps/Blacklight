@@ -1,3 +1,5 @@
+<img src="../../docs/assets/Blacklight_Vertical_WhiteText.png" alt="Blacklight — Illuminating AI agent artifacts" width="100%">
+
 # Blacklight Scout Release Bundles
 
 This directory holds machine-readable Scout release metadata and representative output. The canonical human release gate is [`docs/RELEASE.md`](../../docs/RELEASE.md).

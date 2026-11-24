@@ -235,6 +235,7 @@ static int g_dynamic_root_entries_scanned = 0;
 static int g_dynamic_root_limit = BL_DYNAMIC_ROOT_LIMIT;
 static int g_dynamic_discovery_limit = BL_DYNAMIC_DISCOVERY_LIMIT;
 static int g_dynamic_scan_partial = 0;
+static unsigned int g_relocatable_env_flags = 0;
 
 static int ascii_lower(int value) {
     if (value >= 'A' && value <= 'Z') {
@@ -943,6 +944,9 @@ static void inspect_known_artifact(bl_operator_target_t *target) {
         append_safe_signal(target, "inspection", "deferred");
         return;
     }
+    if (target_tool_is(target, "cursor") &&
+        (wide_contains_ascii_n_ci(target->path, "\\terminals\\", 11) ||
+         wide_contains_ascii_n_ci(target->path, "\\agent-tools\\", 13))) return;
     if (family_is_session(target->family)) return;
     if (!path_has_inspectable_extension(target->path)) return;
     if (target->file_attributes & FILE_ATTRIBUTE_REPARSE_POINT) {
@@ -1163,6 +1167,12 @@ static void print_assessment_summary(void) {
     if (sessions) printf("[i]   Session locations:    %d\n", sessions);
     if (sessions || g_session_scan_partial) printf("[i]   Session artifacts:    %d%s\n", session_artifacts, g_session_scan_partial ? " (partial scan)" : "");
     for (i = 0; i < BL_SESSION_TOOL_COUNT; i++) if (recent_seen[i]) { int first = 1, j; printf("[i]   Recent activity:      "); for (j = 0; j < BL_SESSION_TOOL_COUNT; j++) if (recent_seen[j]) { printf("%s%s", first ? "" : ", ", tool_display_name(tools[j])); first = 0; } printf("\n"); break; }
+    {
+        char reloc_summary[256];
+        if (bl_relocatable_env_summary(g_relocatable_env_flags, reloc_summary, sizeof(reloc_summary))) {
+            printf("[i]   Relocatable env set:  %s\n", reloc_summary);
+        }
+    }
     printf("%s   Discovery status:     %s\n[i]\n", partial ? "[!]" : "[i]", partial ? "PARTIAL" : "COMPLETE");
 }
 
@@ -1810,6 +1820,126 @@ static int windows_report_path_if_exists(
     return 1;
 }
 
+static int windows_get_env_w(const wchar_t *name, wchar_t *value, size_t value_chars) {
+    DWORD needed;
+    if (!name || !value || value_chars == 0) {
+        return 0;
+    }
+    needed = GetEnvironmentVariableW(name, value, (DWORD)value_chars);
+    return needed > 0 && needed < value_chars;
+}
+
+static int windows_join_root_relative(wchar_t *out, size_t out_chars, const wchar_t *root, const char *relative) {
+    size_t root_len;
+    size_t i;
+    size_t used;
+    if (!out || out_chars == 0 || !root || !*root) {
+        return 0;
+    }
+    root_len = wcslen(root);
+    if (root_len + 1 >= out_chars) {
+        return 0;
+    }
+    wcscpy(out, root);
+    used = root_len;
+    if (!relative || !*relative) {
+        return 1;
+    }
+    if (used > 0 && out[used - 1] != L'\\' && out[used - 1] != L'/') {
+        if (used + 1 >= out_chars) {
+            return 0;
+        }
+        out[used++] = L'\\';
+        out[used] = L'\0';
+    }
+    for (i = 0; relative[i]; i++) {
+        if (used + 1 >= out_chars) {
+            return 0;
+        }
+        out[used++] = (relative[i] == '/') ? L'\\' : (wchar_t)(unsigned char)relative[i];
+        out[used] = L'\0';
+    }
+    return 1;
+}
+
+static void windows_report_env_targets(
+    const char *tool,
+    const wchar_t *root,
+    const bl_env_relative_target_t *targets,
+    size_t target_count,
+    bl_scan_results_t *results,
+    const bl_scan_filters_t *filters
+) {
+    size_t i;
+    wchar_t path[BL_MAX_PATH_LEN];
+    if (!tool || !root || !*root || !targets) {
+        return;
+    }
+    for (i = 0; i < target_count; i++) {
+        if (!windows_join_root_relative(path, BL_MAX_PATH_LEN, root, targets[i].relative)) {
+            continue;
+        }
+        windows_report_path_if_exists(tool, targets[i].family, path, results, filters, windows_emit_triage);
+    }
+}
+
+static void scan_relocatable_env_targets(bl_scan_results_t *results, const bl_scan_filters_t *filters) {
+    wchar_t env_value[BL_MAX_PATH_LEN];
+    wchar_t profile[BL_MAX_PATH_LEN];
+    wchar_t path[BL_MAX_PATH_LEN];
+    char store_value[64];
+    size_t i;
+    DWORD store_needed;
+
+    g_relocatable_env_flags = 0;
+    if (windows_get_env_w(L"DEVIN_SESSIONS_DIR", env_value, BL_MAX_PATH_LEN)) {
+        g_relocatable_env_flags |= BL_RELOC_DEVIN_SESSIONS_DIR;
+        windows_report_env_targets(
+            "devin",
+            env_value,
+            BL_DEVIN_SESSIONS_DIR_TARGETS,
+            BL_DEVIN_SESSIONS_DIR_TARGETS_COUNT,
+            results,
+            filters
+        );
+    }
+    store_needed = GetEnvironmentVariableA("DEVIN_SESSION_STORE", store_value, (DWORD)sizeof(store_value));
+    if (store_needed > 0 && store_needed < sizeof(store_value) && bl_ascii_equals_ci(store_value, "files")) {
+        g_relocatable_env_flags |= BL_RELOC_DEVIN_SESSION_STORE_FILES;
+        if (!(g_relocatable_env_flags & BL_RELOC_DEVIN_SESSIONS_DIR) &&
+            windows_get_env_w(L"USERPROFILE", profile, BL_MAX_PATH_LEN)) {
+            for (i = 0; i < BL_DEVIN_DEFAULT_SESSION_ROOTS_COUNT; i++) {
+                if (!windows_join_root_relative(path, BL_MAX_PATH_LEN, profile, BL_DEVIN_DEFAULT_SESSION_ROOTS[i])) {
+                    continue;
+                }
+                windows_report_path_if_exists("devin", "sessions", path, results, filters, windows_emit_triage);
+            }
+        }
+    }
+    if (windows_get_env_w(L"KIRO_HOME", env_value, BL_MAX_PATH_LEN)) {
+        g_relocatable_env_flags |= BL_RELOC_KIRO_HOME;
+        windows_report_env_targets(
+            "kiro",
+            env_value,
+            BL_KIRO_HOME_TARGETS,
+            BL_KIRO_HOME_TARGETS_COUNT,
+            results,
+            filters
+        );
+    }
+    if (windows_get_env_w(L"KIRO_SESSIONS_DIR", env_value, BL_MAX_PATH_LEN)) {
+        g_relocatable_env_flags |= BL_RELOC_KIRO_SESSIONS_DIR;
+        windows_report_env_targets(
+            "kiro",
+            env_value,
+            BL_KIRO_SESSIONS_DIR_TARGETS,
+            BL_KIRO_SESSIONS_DIR_TARGETS_COUNT,
+            results,
+            filters
+        );
+    }
+}
+
 static int operator_path_recorded(const wchar_t *path) {
     int i;
     for (i = 0; i < g_operator_target_count; i++) {
@@ -1833,12 +1963,13 @@ static void scan_dynamic_tree(
     const char *tool,
     const wchar_t *directory,
     int depth,
-    int include_plan_metadata,
+    int discovery_mode,
     bl_scan_results_t *results,
     const bl_scan_filters_t *filters
 ) {
     wchar_t search[BL_MAX_PATH_LEN];
     wchar_t child[BL_MAX_PATH_LEN];
+    DWORD root_attributes;
     WIN32_FIND_DATAW data;
     HANDLE handle;
     size_t length;
@@ -1848,6 +1979,8 @@ static void scan_dynamic_tree(
             g_dynamic_root_entries_scanned >= g_dynamic_root_limit) g_dynamic_scan_partial = 1;
         return;
     }
+    root_attributes = GetFileAttributesW(directory);
+    if (root_attributes == INVALID_FILE_ATTRIBUTES || (root_attributes & FILE_ATTRIBUTE_REPARSE_POINT)) return;
     length = wcslen(directory);
     if (length + 3 >= BL_MAX_PATH_LEN) return;
     wcscpy(search, directory);
@@ -1868,12 +2001,30 @@ static void scan_dynamic_tree(
         wcscat(child, data.cFileName);
         if (data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) continue;
         if (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-            if (depth > 0) scan_dynamic_tree(tool, child, depth - 1, include_plan_metadata, results, filters);
-        } else if (_wcsicmp(data.cFileName, L".mcp.json") == 0) {
+            if (strcmp(tool, "cursor") == 0 && !discovery_mode && depth == BL_DYNAMIC_DISCOVERY_MAX_DEPTH - 1 &&
+                (_wcsicmp(data.cFileName, L"terminals") == 0 || _wcsicmp(data.cFileName, L"agent-tools") == 0)) {
+                scan_dynamic_tree(tool, child, depth - 1, BL_DISCOVERY_PROJECT_OUTPUTS, results, filters);
+                continue;
+            }
+            if ((discovery_mode == BL_DISCOVERY_PROJECT_OUTPUTS || discovery_mode == BL_DISCOVERY_CHAT_COMPANIONS) && depth == 0) { g_dynamic_scan_partial = 1; continue; }
+            if (strcmp(tool, "cursor") == 0 && !discovery_mode && depth == BL_DYNAMIC_DISCOVERY_MAX_DEPTH - 1 && _wcsicmp(data.cFileName, L"mcps") == 0) {
+                report_dynamic_file(tool, "mcp", child, results, filters);
+                continue;
+            }
+            if (depth > 0) scan_dynamic_tree(tool, child, depth - 1, discovery_mode, results, filters);
+        } else if (discovery_mode == BL_DISCOVERY_PROJECT_OUTPUTS) {
+            report_dynamic_file(tool, "workspace", child, results, filters);
+        } else if (discovery_mode == BL_DISCOVERY_CHAT_COMPANIONS && (_wcsicmp(data.cFileName, L"store.db-wal") == 0 || _wcsicmp(data.cFileName, L"store.db-shm") == 0)) {
+            report_dynamic_file(tool, "sessions", child, results, filters);
+        } else if (discovery_mode == BL_DISCOVERY_WORKSPACE_DATABASES && depth == 0 && (_wcsicmp(data.cFileName, L"state.vscdb") == 0 || _wcsicmp(data.cFileName, L"state.vscdb-wal") == 0 || _wcsicmp(data.cFileName, L"state.vscdb-shm") == 0 || _wcsicmp(data.cFileName, L"state.vscdb.backup") == 0 || _wcsicmp(data.cFileName, L"state.vscdb.backup-wal") == 0 || _wcsicmp(data.cFileName, L"state.vscdb.backup-shm") == 0)) {
+            report_dynamic_file(tool, "sessions", child, results, filters);
+        } else if (strcmp(tool, "cursor") == 0 && !discovery_mode && depth == BL_DYNAMIC_DISCOVERY_MAX_DEPTH - 1 && _wcsicmp(data.cFileName, L".workspace-trusted") == 0) {
+            report_dynamic_file(tool, "workspace", child, results, filters);
+        } else if (!discovery_mode && _wcsicmp(data.cFileName, L".mcp.json") == 0) {
             report_dynamic_file(tool, "mcp", child, results, filters);
         } else if (strcmp(tool, "claude_code") == 0 && _wcsicmp(data.cFileName, L"sessions-index.json") == 0) {
             report_dynamic_file(tool, "sessions", child, results, filters);
-        } else if (include_plan_metadata) {
+        } else if (discovery_mode == 1) {
             size_t name_length = wcslen(data.cFileName);
             if (name_length >= 8 && _wcsicmp(data.cFileName + name_length - 8, L".plan.md") == 0)
                 report_dynamic_file(tool, "plans", child, results, filters);
@@ -1894,7 +2045,7 @@ static void scan_dynamic_targets(bl_scan_results_t *results, const bl_scan_filte
     if (needed == 0 || needed > BL_MAX_PATH_LEN) return;
     allowed_roots += bl_target_allowed("codex", filters) ? 1 : 0;
     allowed_roots += bl_target_allowed("claude_code", filters) ? 1 : 0;
-    allowed_roots += bl_target_allowed("cursor", filters) ? 2 : 0;
+    allowed_roots += bl_target_allowed("cursor", filters) ? 4 : 0;
     if (allowed_roots == 0) return;
     g_dynamic_root_limit = g_dynamic_discovery_limit / allowed_roots;
 
@@ -1929,6 +2080,12 @@ static void scan_dynamic_targets(bl_scan_results_t *results, const bl_scan_filte
         g_dynamic_root_entries_scanned = 0;
         _snwprintf(root, BL_MAX_PATH_LEN - 1, L"%ls\\.cursor\\plans", profile);
         scan_dynamic_tree("cursor", root, 0, 1, results, filters);
+        g_dynamic_root_entries_scanned = 0;
+        _snwprintf(root, BL_MAX_PATH_LEN - 1, L"%ls\\.cursor\\chats", profile);
+        scan_dynamic_tree("cursor", root, BL_DYNAMIC_DISCOVERY_MAX_DEPTH, BL_DISCOVERY_CHAT_COMPANIONS, results, filters);
+        g_dynamic_root_entries_scanned = 0;
+        _snwprintf(root, BL_MAX_PATH_LEN - 1, L"%ls\\AppData\\Roaming\\Cursor\\User\\workspaceStorage", profile);
+        scan_dynamic_tree("cursor", root, 1, BL_DISCOVERY_WORKSPACE_DATABASES, results, filters);
     }
 }
 
@@ -2037,6 +2194,7 @@ int main(int argc, char **argv) {
     g_inspection_budget_exhausted = 0;
     g_dynamic_entries_scanned = 0;
     g_dynamic_scan_partial = 0;
+    g_relocatable_env_flags = 0;
     if (g_dynamic_discovery_limit < 1) g_dynamic_discovery_limit = BL_DYNAMIC_DISCOVERY_LIMIT;
     if (filters.tools_len > 0) {
         printf("[i] Include filters enabled\n");
@@ -2053,6 +2211,7 @@ int main(int argc, char **argv) {
         windows_report_path_if_exists,
         windows_emit_triage
     );
+    scan_relocatable_env_targets(&results, &filters);
     scan_dynamic_targets(&results, &filters);
     scan_session_candidates();
     print_operator_triage_summary();

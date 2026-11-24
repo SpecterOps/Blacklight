@@ -43,7 +43,8 @@ class MuseSessionTests(unittest.TestCase):
             session = report['top_sessions'][0]
             self.assertEqual(session['request_count'], 1)
             self.assertEqual(session['response_count'], 1)
-            self.assertIsNotNone(session['high_value_detail'])
+            self.assertNotIn('high_value_detail', session)
+            self.assertIn('scoring', session)
             path.unlink()
             self.assertEqual(discover_local_session_inputs(home, tool='muse_code').sources, [])
 

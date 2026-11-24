@@ -52,7 +52,7 @@ class ComputerHistoryNativeTests(unittest.TestCase):
             env = dict(os.environ, HOME=str(home))
             env.pop("CODEX_HOME", None)
             def run():
-                return subprocess.check_output([str(self.binary)], env=env, text=True)
+                return subprocess.check_output([str(self.binary), "--verbose"], env=env, text=True)
             baseline = run()
             self.assertNotIn("skysight", baseline)
             for path in (default, override):

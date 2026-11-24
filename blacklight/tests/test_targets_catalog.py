@@ -20,6 +20,13 @@ class TargetCatalogAlignmentTests(unittest.TestCase):
         profile = self.catalog["platforms"][platform]
         return [(item["tool"], item["family"], item["pattern"]) for item in profile["targets"]]
 
+    def test_cursor_project_markers_in_all_scout_walkers(self) -> None:
+        for relative in ("native/ai_path_scout_windows.c", "native/ai_path_scout_posix.c", "native/ai_path_scout_bof.c", "managed/Program.cs"):
+            source = (self.repo_root / "blacklight-scout" / relative).read_text(encoding="utf-8")
+            with self.subTest(surface=relative):
+                self.assertIn('"mcps"', source) if relative != "native/ai_path_scout_bof.c" else self.assertIn('\\\\mcps', source)
+                self.assertIn('.workspace-trusted', source)
+
     def test_catalog_tools_match_scope(self) -> None:
         self.assertEqual(
             self.catalog["tools"],
@@ -102,9 +109,13 @@ class TargetCatalogAlignmentTests(unittest.TestCase):
             ("mcp", ".config/devin/mcp_config.json"),
             ("mcp", "AppData/Roaming/devin/mcp_config.json"),
             ("logs", ".local/share/devin/cli/logs"),
+            ("sessions", ".local/share/devin/cli/sessions.db"),
+            ("sessions", ".local/share/devin/cli/sessions.db-wal"),
+            ("sessions", ".local/share/devin/cli/sessions.db-shm"),
             ("root", ".local/share/cognition"),
             ("root", ".local/share/chisel"),
             ("config", ".config/devin"),
+            ("mcp", ".config/devin/mcp_config.json"),
             ("config", ".config/cognition"),
             ("cache", ".cache/devin"),
             ("cache", ".cache/cognition"),
@@ -114,6 +125,10 @@ class TargetCatalogAlignmentTests(unittest.TestCase):
             ("root", "AppData/Local/devin/cli/_versions"),
             ("root", "AppData/Local/devin/bin/devin.exe"),
             ("logs", "AppData/Roaming/devin/cli/logs"),
+            ("sessions", "AppData/Local/devin/cli/sessions.db"),
+            ("sessions", "AppData/Local/devin/cli/sessions.db-wal"),
+            ("sessions", "AppData/Local/devin/cli/sessions.db-shm"),
+            ("mcp", "AppData/Roaming/devin/mcp_config.json"),
         }
         expected_strands = {
             ("root", ".strands"),
@@ -143,6 +158,45 @@ class TargetCatalogAlignmentTests(unittest.TestCase):
         session_input = (self.repo_root / "blacklight" / "session_input.py").read_text(encoding="utf-8").lower()
         self.assertNotIn("devin", session_input)
         self.assertNotIn("strands", session_input)
+
+    def test_relocatable_env_roots_are_runtime_overlays(self) -> None:
+        native_core = (self.repo_root / "blacklight-scout" / "native" / "ai_path_scout_core.c").read_text(
+            encoding="utf-8"
+        )
+        native_posix = (self.repo_root / "blacklight-scout" / "native" / "ai_path_scout_posix.c").read_text(
+            encoding="utf-8"
+        )
+        native_windows = (self.repo_root / "blacklight-scout" / "native" / "ai_path_scout_windows.c").read_text(
+            encoding="utf-8"
+        )
+        native_bof = (self.repo_root / "blacklight-scout" / "native" / "ai_path_scout_bof.c").read_text(
+            encoding="utf-8"
+        )
+        managed = (self.repo_root / "blacklight-scout" / "managed" / "Program.cs").read_text(encoding="utf-8")
+        architecture = (self.repo_root / "docs" / "architecture.md").read_text(encoding="utf-8")
+        for name in ("DEVIN_SESSIONS_DIR", "DEVIN_SESSION_STORE", "KIRO_HOME", "KIRO_SESSIONS_DIR"):
+            with self.subTest(name=name):
+                self.assertIn(name, native_posix)
+                self.assertIn(name, native_windows)
+                self.assertIn(name, native_bof)
+                self.assertIn(name, managed)
+        for source in (native_posix, native_windows, native_bof, managed):
+            self.assertIn("Relocatable env set", source)
+        self.assertIn("BL_DEVIN_SESSIONS_DIR_TARGETS", native_core)
+        self.assertIn("BL_KIRO_HOME_TARGETS", native_core)
+        self.assertIn("scan_relocatable_env_targets", native_posix)
+        self.assertIn("scan_relocatable_env_targets", native_windows)
+        self.assertIn("bof_scan_relocatable_env_targets", native_bof)
+        self.assertIn("ScanRelocatableEnvTargets", managed)
+        self.assertIn("DEVIN_SESSIONS_DIR", architecture)
+        self.assertIn("KIRO_HOME", architecture)
+        self.assertIn("KIRO_SESSIONS_DIR", architecture)
+        for platform in ("windows", "darwin", "linux"):
+            patterns = [pattern for tool, _family, pattern in self._catalog_tuples(platform)]
+            with self.subTest(platform=platform):
+                self.assertFalse(any("DEVIN_SESSIONS_DIR" in pattern for pattern in patterns))
+                self.assertFalse(any("KIRO_HOME" in pattern for pattern in patterns))
+                self.assertFalse(any("KIRO_SESSIONS_DIR" in pattern for pattern in patterns))
 
     def test_kiro_and_opencode_support_is_existence_enum_only(self) -> None:
         expected_kiro = {
@@ -215,6 +269,14 @@ class TargetCatalogAlignmentTests(unittest.TestCase):
         session_input = (self.repo_root / "blacklight" / "session_input.py").read_text(encoding="utf-8").lower()
         self.assertNotIn("kiro", session_input)
         self.assertIn("opencode", session_input)
+
+    def test_claude_pdf_transcript_note_is_documented(self) -> None:
+        architecture = (self.repo_root / "docs" / "architecture.md").read_text(encoding="utf-8")
+        skill = (self.repo_root / "skills" / "session-analysis" / "SKILL.md").read_text(encoding="utf-8")
+        for text in (architecture, skill):
+            self.assertIn("2.1.299", text)
+            self.assertIn("PDF", text)
+            self.assertIn("not evidence", text.lower())
 
     def test_muse_code_support_is_existence_enum_only(self) -> None:
         expected = {
@@ -289,7 +351,9 @@ class TargetCatalogAlignmentTests(unittest.TestCase):
     def test_catalog_relative_paths_are_cross_platform_aligned(self) -> None:
         def relative_patterns(platform: str) -> set[str]:
             home_var = self.catalog["platforms"][platform]["home_var"]
-            return {pattern.replace("\\", "/").removeprefix(f"{home_var}/") for _tool, _family, pattern in self._catalog_tuples(platform)}
+            paths = {pattern.replace("\\", "/").removeprefix(f"{home_var}/") for _tool, _family, pattern in self._catalog_tuples(platform)}
+            ide_root = {"windows": "AppData/Roaming/Cursor", "darwin": "Library/Application Support/Cursor", "linux": ".config/Cursor"}[platform]
+            return {"<cursor-ide>" + path[len(ide_root):] if path == ide_root or path.startswith(ide_root + "/") else path for path in paths}
 
         windows = relative_patterns("windows")
         for platform in ("darwin", "linux"):
@@ -370,6 +434,25 @@ class TargetCatalogAlignmentTests(unittest.TestCase):
                     values,
                 )
                 self.assertEqual(artifact["assessment_coverage"], "explicitly_assessed")
+
+    def test_cursor_agent_transcript_subagents_glob_is_cataloged(self) -> None:
+        catalog = json.loads(
+            (self.repo_root / "blacklight-rules" / "catalog" / "confirmed_artifacts.json").read_text(encoding="utf-8")
+        )
+        by_id = {artifact["id"]: artifact for artifact in catalog["artifacts"]}
+        parent = by_id["cursor.agent_transcripts"]
+        subagents = by_id["cursor.agent_transcripts_subagents"]
+        self.assertEqual(parent["relative_path"], ".cursor/projects/*/agent-transcripts/*/*.jsonl")
+        self.assertEqual(
+            subagents["relative_path"],
+            ".cursor/projects/*/agent-transcripts/*/subagents/**/*.jsonl",
+        )
+        self.assertEqual(subagents["family"], "sessions")
+        self.assertEqual(subagents["path_kind"], "glob")
+        self.assertEqual(subagents["assessment_coverage"], "recursively_discovered")
+        self.assertEqual(subagents["confirmed_by"], ["blacklight.analyze.run_session_detail"])
+        matrix = (self.repo_root / "docs" / "matrix.md").read_text(encoding="utf-8")
+        self.assertIn("`.cursor/projects/*/agent-transcripts/*/subagents/**/*.jsonl`", matrix)
 
     def test_windows_bof_has_one_unfiltered_triage_path(self) -> None:
         source = (self.repo_root / "blacklight-scout" / "native" / "ai_path_scout_bof.c").read_text(encoding="utf-8")

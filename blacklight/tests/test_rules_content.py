@@ -160,6 +160,7 @@ class BlacklightRulesContentTests(unittest.TestCase):
                 "cursor.ai_tracking",
                 "cursor.chat_store",
                 "cursor.agent_transcripts",
+                "cursor.agent_transcripts_subagents",
                 "antigravity_cli.transcripts",
                 "antigravity_cli.conversation_summaries",
             }.issubset(catalog_ids)
@@ -204,9 +205,12 @@ class BlacklightRulesContentTests(unittest.TestCase):
             if item["path_kind"] == "glob":
                 continue
             with self.subTest(artifact=item["id"]):
-                if "windows" in item.get("platforms", ["windows", "darwin", "linux"]):
-                    self.assertIn("\\" + item["relative_path"].replace("/", "\\"), windows)
-                self.assertIn("/" + item["relative_path"], posix)
+                path = item["relative_path"]
+                platforms = item.get("platforms", ["windows", "darwin", "linux"])
+                if "windows" in platforms and not path.startswith(("Library/Application Support/Cursor", ".config/Cursor")):
+                    self.assertIn("\\" + path.replace("/", "\\"), windows)
+                if {"darwin", "linux"}.intersection(platforms) and not path.startswith("AppData/Roaming/Cursor"):
+                    self.assertIn("/" + path, posix)
 
     def test_windows_telemetry_configuration_is_audit_first_and_reversible(self) -> None:
         windows = (self.rules_root / "powershell" / "Invoke-BlacklightWindowsTelemetry.ps1").read_text(encoding="utf-8")

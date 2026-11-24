@@ -107,6 +107,42 @@ namespace Blacklight.Scout.Managed
         private static int _dynamicDiscoveryLimit = DynamicDiscoveryLimit;
         private static bool _dynamicScanPartial;
         private static bool _triageResultOverflow;
+        private static readonly List<string> RelocatableEnvFlags = new List<string>();
+
+        private static readonly Tuple<string, string>[] DevinSessionsDirTargets = new[]
+        {
+            Tuple.Create("sessions", ""),
+            Tuple.Create("sessions", "sessions.db"),
+            Tuple.Create("sessions", "sessions.db-wal"),
+            Tuple.Create("sessions", "sessions.db-shm"),
+        };
+
+        private static readonly Tuple<string, string>[] KiroHomeTargets = new[]
+        {
+            Tuple.Create("root", ""),
+            Tuple.Create("config", "settings"),
+            Tuple.Create("config", Path.Combine("settings", "cli.json")),
+            Tuple.Create("mcp", Path.Combine("settings", "mcp.json")),
+            Tuple.Create("config", "agents"),
+            Tuple.Create("skills", "skills"),
+            Tuple.Create("rules", "steering"),
+            Tuple.Create("config", "hooks"),
+            Tuple.Create("sessions", "sessions"),
+            Tuple.Create("sessions", Path.Combine("sessions", "cli")),
+            Tuple.Create("history", "memories"),
+        };
+
+        private static readonly Tuple<string, string>[] KiroSessionsDirTargets = new[]
+        {
+            Tuple.Create("sessions", ""),
+            Tuple.Create("sessions", "cli"),
+        };
+
+        private static readonly string[] DevinDefaultSessionRoots = new[]
+        {
+            Path.Combine(".local", "share", "devin", "cli"),
+            Path.Combine("AppData", "Local", "devin", "cli"),
+        };
 
         private static int Main(string[] args)
         {
@@ -156,6 +192,7 @@ namespace Blacklight.Scout.Managed
                     ScanTarget(target, options);
                 }
 
+                ScanRelocatableEnvTargets(options);
                 ScanDynamicTargets(options);
                 ScanSessionCandidates();
                 PrintHumanTriage();
@@ -276,6 +313,14 @@ namespace Blacklight.Scout.Managed
 
         private static string ExpandPath(string pattern)
         {
+            if (string.IsNullOrEmpty(pattern))
+            {
+                return pattern;
+            }
+            if (pattern.IndexOf("%USERPROFILE%", StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                return pattern.Replace('/', Path.DirectorySeparatorChar);
+            }
             var userProfile = Environment.GetEnvironmentVariable("USERPROFILE");
             if (string.IsNullOrEmpty(userProfile))
             {
@@ -430,6 +475,9 @@ namespace Blacklight.Scout.Managed
                 AddSafeSignal(result, "inspection=deferred");
                 return;
             }
+            if (EqualsCi(result.Tool, "cursor") &&
+                (result.Path.IndexOf("\\terminals\\", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 result.Path.IndexOf("\\agent-tools\\", StringComparison.OrdinalIgnoreCase) >= 0)) return;
             if (IsSessionInspectionFamily(result.Family)) return;
             var extension = Path.GetExtension(result.Path);
             if (!(EqualsCi(extension, ".json") || EqualsCi(extension, ".jsonl") || EqualsCi(extension, ".toml") ||
@@ -596,6 +644,64 @@ namespace Blacklight.Scout.Managed
             _dynamicDiscoveryLimit = DynamicDiscoveryLimit;
             _dynamicScanPartial = false;
             _triageResultOverflow = false;
+            RelocatableEnvFlags.Clear();
+        }
+
+        private static void ScanRelocatableEnvTargets(Options options)
+        {
+            RelocatableEnvFlags.Clear();
+            var devinSessionsDir = Environment.GetEnvironmentVariable("DEVIN_SESSIONS_DIR");
+            var devinSessionStore = Environment.GetEnvironmentVariable("DEVIN_SESSION_STORE");
+            var kiroHome = Environment.GetEnvironmentVariable("KIRO_HOME");
+            var kiroSessionsDir = Environment.GetEnvironmentVariable("KIRO_SESSIONS_DIR");
+
+            if (!string.IsNullOrEmpty(devinSessionsDir))
+            {
+                RelocatableEnvFlags.Add("DEVIN_SESSIONS_DIR");
+                ReportEnvTargets("devin", devinSessionsDir, DevinSessionsDirTargets, options);
+            }
+
+            if (!string.IsNullOrEmpty(devinSessionStore) &&
+                string.Equals(devinSessionStore, "files", StringComparison.OrdinalIgnoreCase))
+            {
+                RelocatableEnvFlags.Add("DEVIN_SESSION_STORE=files");
+                if (string.IsNullOrEmpty(devinSessionsDir))
+                {
+                    var profile = Environment.GetEnvironmentVariable("USERPROFILE");
+                    if (string.IsNullOrEmpty(profile))
+                    {
+                        profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                    }
+                    if (!string.IsNullOrEmpty(profile))
+                    {
+                        foreach (var relative in DevinDefaultSessionRoots)
+                        {
+                            ScanTarget(new Target("devin", "sessions", Path.Combine(profile, relative)), options);
+                        }
+                    }
+                }
+            }
+
+            if (!string.IsNullOrEmpty(kiroHome))
+            {
+                RelocatableEnvFlags.Add("KIRO_HOME");
+                ReportEnvTargets("kiro", kiroHome, KiroHomeTargets, options);
+            }
+
+            if (!string.IsNullOrEmpty(kiroSessionsDir))
+            {
+                RelocatableEnvFlags.Add("KIRO_SESSIONS_DIR");
+                ReportEnvTargets("kiro", kiroSessionsDir, KiroSessionsDirTargets, options);
+            }
+        }
+
+        private static void ReportEnvTargets(string tool, string root, Tuple<string, string>[] targets, Options options)
+        {
+            foreach (var target in targets)
+            {
+                var path = string.IsNullOrEmpty(target.Item2) ? root : Path.Combine(root, target.Item2);
+                ScanTarget(new Target(tool, target.Item1, path), options);
+            }
         }
 
         private static int CountKnownKeys(string text, IEnumerable<string> keys)
@@ -613,7 +719,7 @@ namespace Blacklight.Scout.Managed
             var profile = Environment.GetEnvironmentVariable("USERPROFILE");
             if (string.IsNullOrEmpty(profile)) profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             if (string.IsNullOrEmpty(profile)) return;
-            var dynamicTools = new[] { "codex", "claude_code", "cursor", "cursor" };
+            var dynamicTools = new[] { "codex", "claude_code", "cursor", "cursor", "cursor", "cursor" };
             var allowedRoots = dynamicTools.Count(tool => ToolAllowed(tool, options.IncludeTools, true) && ToolAllowed(tool, options.ExcludeTools, false));
             if (allowedRoots == 0) return;
             _dynamicDiscoveryLimit = options.DiscoveryCap;
@@ -622,13 +728,16 @@ namespace Blacklight.Scout.Managed
             ScanNamedFiles("claude_code", "mcp", Path.Combine(profile, ".claude", "projects"), new[] { ".mcp.json", "sessions-index.json" }, true, options);
             ScanNamedFiles("cursor", "mcp", Path.Combine(profile, ".cursor", "projects"), new[] { ".mcp.json" }, true, options);
             ScanNamedFiles("cursor", "plans", Path.Combine(profile, ".cursor", "plans"), new[] { ".plan.md" }, false, options);
+            ScanNamedFiles("cursor", "cursor_companions", Path.Combine(profile, ".cursor", "chats"), new[] { "store.db-wal", "store.db-shm" }, true, options);
+            ScanNamedFiles("cursor", "cursor_workspace", Path.Combine(profile, "AppData", "Roaming", "Cursor", "User", "workspaceStorage"),
+                new[] { "state.vscdb", "state.vscdb-wal", "state.vscdb-shm", "state.vscdb.backup", "state.vscdb.backup-wal", "state.vscdb.backup-shm" }, true, options);
         }
 
         private static void ScanNamedFiles(string tool, string family, string root, string[] namesOrExtensions, bool recursive, Options options)
         {
             if (!Directory.Exists(root) || !ToolAllowed(tool, options.IncludeTools, true) || !ToolAllowed(tool, options.ExcludeTools, false)) return;
             _dynamicRootEntriesScanned = 0;
-            WalkDynamicFiles(tool, family, root, namesOrExtensions, recursive ? DynamicDiscoveryMaxDepth : 0, options);
+            WalkDynamicFiles(tool, family, root, namesOrExtensions, EqualsCi(family, "cursor_workspace") ? 1 : (recursive ? DynamicDiscoveryMaxDepth : 0), options);
         }
 
         private static void WalkDynamicFiles(string tool, string family, string directory, string[] namesOrExtensions, int depth, Options options)
@@ -640,6 +749,7 @@ namespace Blacklight.Scout.Managed
             }
             try
             {
+                if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0) return;
                 foreach (var entry in Directory.EnumerateFileSystemEntries(directory))
                 {
                     if (_dynamicEntriesScanned >= _dynamicDiscoveryLimit || _dynamicRootEntriesScanned >= _dynamicRootLimit) { _dynamicScanPartial = true; return; }
@@ -651,15 +761,39 @@ namespace Blacklight.Scout.Managed
                     if ((attributes & FileAttributes.ReparsePoint) != 0) continue;
                     if ((attributes & FileAttributes.Directory) != 0)
                     {
+                        if (EqualsCi(tool, "cursor") && EqualsCi(family, "mcp") && depth == DynamicDiscoveryMaxDepth - 1 &&
+                            (EqualsCi(Path.GetFileName(entry), "terminals") || EqualsCi(Path.GetFileName(entry), "agent-tools")))
+                        {
+                            WalkDynamicFiles(tool, "cursor_outputs", entry, namesOrExtensions, depth - 1, options);
+                            continue;
+                        }
+                        if (depth == 0 && (EqualsCi(family, "cursor_outputs") || EqualsCi(family, "cursor_companions")))
+                        {
+                            _dynamicScanPartial = true;
+                            continue;
+                        }
+                        if (EqualsCi(tool, "cursor") && EqualsCi(family, "mcp") && depth == DynamicDiscoveryMaxDepth - 1 && EqualsCi(Path.GetFileName(entry), "mcps"))
+                        {
+                            if (!TriageResults.Any(result => string.Equals(result.Path, entry, StringComparison.OrdinalIgnoreCase))) ScanTarget(new Target(tool, "mcp", entry), options);
+                            continue;
+                        }
                         if (depth > 0) WalkDynamicFiles(tool, family, entry, namesOrExtensions, depth - 1, options);
                         continue;
                     }
                     var name = Path.GetFileName(entry);
-                    var matched = namesOrExtensions.Any(value => value.StartsWith(".", StringComparison.Ordinal) && !value.Contains("json")
+                    if (EqualsCi(tool, "cursor") && EqualsCi(family, "mcp") && depth == DynamicDiscoveryMaxDepth - 1 && EqualsCi(name, ".workspace-trusted"))
+                    {
+                        if (!TriageResults.Any(result => string.Equals(result.Path, entry, StringComparison.OrdinalIgnoreCase))) ScanTarget(new Target(tool, "workspace", entry), options);
+                        continue;
+                    }
+                    var matched = EqualsCi(family, "cursor_outputs") || namesOrExtensions.Any(value => value.StartsWith(".", StringComparison.Ordinal) && !value.Contains("json")
                         ? name.EndsWith(value, StringComparison.OrdinalIgnoreCase)
                         : string.Equals(name, value, StringComparison.OrdinalIgnoreCase));
                     if (!matched || TriageResults.Any(result => string.Equals(result.Path, entry, StringComparison.OrdinalIgnoreCase))) continue;
                     var matchedFamily = EqualsCi(tool, "claude_code") && EqualsCi(name, "sessions-index.json") ? "sessions" : family;
+                    if (EqualsCi(family, "cursor_outputs")) matchedFamily = "workspace";
+                    if (EqualsCi(family, "cursor_companions") || EqualsCi(family, "cursor_workspace")) matchedFamily = "sessions";
+                    if (EqualsCi(family, "cursor_workspace") && depth != 0) continue;
                     ScanTarget(new Target(tool, matchedFamily, entry), options);
                 }
             }
@@ -803,6 +937,10 @@ namespace Blacklight.Scout.Managed
             if (sessions > 0) WriteLine("[i]   Session locations:    {0}", sessions);
             if (sessions > 0 || _sessionScanPartial) WriteLine("[i]   Session artifacts:    {0}{1}", SessionArtifactCounts.Sum(), _sessionScanPartial ? " (partial scan)" : string.Empty);
             if (recentTools.Count > 0) WriteLine("[i]   Recent activity:      {0}", string.Join(", ", recentTools));
+            if (RelocatableEnvFlags.Count > 0)
+            {
+                WriteLine("[i]   Relocatable env set:  {0}", string.Join(", ", RelocatableEnvFlags));
+            }
             WriteLine(_triageResultOverflow || _dynamicScanPartial || _sessionScanPartial ? "[!]   Discovery status:     PARTIAL" : "[i]   Discovery status:     COMPLETE");
             WriteLine("[i]");
         }

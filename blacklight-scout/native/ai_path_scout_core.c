@@ -61,6 +61,116 @@ static int bl_ascii_equals(const char *left, const char *right) {
     return bl_ascii_equal_n(left, len, right);
 }
 
+int bl_ascii_equals_ci(const char *left, const char *right) {
+    int i = 0;
+    if (!left || !right) {
+        return 0;
+    }
+    while (left[i] && right[i]) {
+        if (bl_ascii_lower((unsigned char)left[i]) != bl_ascii_lower((unsigned char)right[i])) {
+            return 0;
+        }
+        i++;
+    }
+    return left[i] == '\0' && right[i] == '\0';
+}
+
+const bl_env_relative_target_t BL_DEVIN_SESSIONS_DIR_TARGETS[] = {
+    { "sessions", "" },
+    { "sessions", "sessions.db" },
+    { "sessions", "sessions.db-wal" },
+    { "sessions", "sessions.db-shm" },
+};
+const size_t BL_DEVIN_SESSIONS_DIR_TARGETS_COUNT =
+    sizeof(BL_DEVIN_SESSIONS_DIR_TARGETS) / sizeof(BL_DEVIN_SESSIONS_DIR_TARGETS[0]);
+
+const bl_env_relative_target_t BL_KIRO_HOME_TARGETS[] = {
+    { "root", "" },
+    { "config", "settings" },
+    { "config", "settings/cli.json" },
+    { "mcp", "settings/mcp.json" },
+    { "config", "agents" },
+    { "skills", "skills" },
+    { "rules", "steering" },
+    { "config", "hooks" },
+    { "sessions", "sessions" },
+    { "sessions", "sessions/cli" },
+    { "history", "memories" },
+};
+const size_t BL_KIRO_HOME_TARGETS_COUNT =
+    sizeof(BL_KIRO_HOME_TARGETS) / sizeof(BL_KIRO_HOME_TARGETS[0]);
+
+const bl_env_relative_target_t BL_KIRO_SESSIONS_DIR_TARGETS[] = {
+    { "sessions", "" },
+    { "sessions", "cli" },
+};
+const size_t BL_KIRO_SESSIONS_DIR_TARGETS_COUNT =
+    sizeof(BL_KIRO_SESSIONS_DIR_TARGETS) / sizeof(BL_KIRO_SESSIONS_DIR_TARGETS[0]);
+
+const char *const BL_DEVIN_DEFAULT_SESSION_ROOTS[] = {
+    ".local/share/devin/cli",
+    "AppData/Local/devin/cli",
+};
+const size_t BL_DEVIN_DEFAULT_SESSION_ROOTS_COUNT =
+    sizeof(BL_DEVIN_DEFAULT_SESSION_ROOTS) / sizeof(BL_DEVIN_DEFAULT_SESSION_ROOTS[0]);
+
+int bl_relocatable_env_summary(unsigned int flags, char *buffer, size_t buffer_size) {
+    size_t used = 0;
+    int first = 1;
+    const char *names[4];
+    unsigned int bits[4];
+    int i;
+    int count = 0;
+
+    if (!buffer || buffer_size == 0) {
+        return 0;
+    }
+    buffer[0] = '\0';
+    names[0] = "DEVIN_SESSIONS_DIR";
+    bits[0] = BL_RELOC_DEVIN_SESSIONS_DIR;
+    names[1] = "DEVIN_SESSION_STORE=files";
+    bits[1] = BL_RELOC_DEVIN_SESSION_STORE_FILES;
+    names[2] = "KIRO_HOME";
+    bits[2] = BL_RELOC_KIRO_HOME;
+    names[3] = "KIRO_SESSIONS_DIR";
+    bits[3] = BL_RELOC_KIRO_SESSIONS_DIR;
+
+    for (i = 0; i < 4; i++) {
+        size_t name_len;
+        if ((flags & bits[i]) == 0) {
+            continue;
+        }
+        name_len = 0;
+        while (names[i][name_len]) {
+            name_len++;
+        }
+        if (!first) {
+            if (used + 2 >= buffer_size) {
+                buffer[0] = '\0';
+                return 0;
+            }
+            buffer[used++] = ',';
+            buffer[used++] = ' ';
+            buffer[used] = '\0';
+        }
+        if (used + name_len >= buffer_size) {
+            buffer[0] = '\0';
+            return 0;
+        }
+        {
+            size_t j;
+            for (j = 0; j < name_len; j++) {
+                buffer[used + j] = names[i][j];
+            }
+            used += name_len;
+            buffer[used] = '\0';
+        }
+        first = 0;
+        count++;
+    }
+    return count > 0 ? 1 : 0;
+}
+
 int bl_loader_filter_tool(const char *value, int value_len, const char **canonical) {
     if (canonical) {
         *canonical = 0;

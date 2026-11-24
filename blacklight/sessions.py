@@ -10,7 +10,7 @@ from typing import Any, Iterable
 
 from .progress import ProgressCallback, ProgressEvent
 
-from .analyze import build_session_targeting_report, run_session_detail, run_session_high_value
+from .analyze import build_session_targeting_report, run_session_detail
 from .common import host_context, safe_name, utc_now
 from .session_input import SessionInputDiscovery, SessionSource, discover_local_session_inputs, discover_session_inputs
 
@@ -33,33 +33,45 @@ def _targeting_rows(result: dict[str, Any]) -> list[dict[str, Any]]:
     return _finding_sessions(result)
 
 
-def _session_score(row: dict[str, Any], high_value: dict[str, Any] | None) -> int:
-    requests = int(row.get("request_count") or 0)
-    responses = int(row.get("response_count") or 0)
-    tool_bytes = int(row.get("captured_tool_event_bytes") or 0)
-    content_bytes = int(row.get("captured_total_bytes") or 0)
-    score = min(25, requests * 2)
-    score += min(20, responses * 2)
-    score += min(15, int(math.log2(tool_bytes + 1) * 1.5))
-    score += min(15, int(math.log2(content_bytes + 1) * 1.2))
-    score += 5 if row.get("session_title") else 0
-    score += 5 if row.get("project_worktree_path") else 0
-    if row.get("response_status") == "present":
-        score += 5
-    if not row.get("parse_error_count"):
-        score += 5
-    if high_value:
-        score += min(5, int(high_value.get("unique_high_value_score") or 0))
-    return min(100, score)
+SCORING_VERSION = "activity-v1"
+SCORING_FORMULA = (
+    "floor(40*B/(B+65536) + 30*M/(M+20) + 20*2**(-A/30) + 10*F/(F+4)), capped at 99; "
+    "B=captured bytes, M=requests+responses, A=age in days, "
+    "F=other same-tool/project sessions active within 30 days in selected input"
+)
 
 
-def _category_names(row: dict[str, Any] | None) -> set[str]:
-    if not row:
-        return set()
+def _activity_time(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        stamp = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        return stamp.replace(tzinfo=timezone.utc) if stamp.tzinfo is None else stamp.astimezone(timezone.utc)
+    except (ValueError, OverflowError):
+        return None
+
+
+def _session_score(row: dict[str, Any], reference_time: datetime, frequency: int = 0) -> dict[str, Any]:
+    size = max(0, int(row.get("captured_total_bytes") or 0))
+    messages = sum(max(0, int(row.get(key) or 0)) for key in ("request_count", "response_count"))
+    stamp = _activity_time(row.get("last_activity"))
+    age = max(0.0, (reference_time - stamp).total_seconds() / 86400) if stamp else None
+    frequency = max(0, frequency)
+    components = {
+        "size_points": 40 * size / (size + 65536),
+        "message_points": 30 * messages / (messages + 20),
+        "recency_points": 20 * 2 ** (-age / 30) if age is not None else 0.0,
+        "frequency_points": 10 * frequency / (frequency + 4),
+    }
+    raw = sum(components.values())
     return {
-        str(item.get("category"))
-        for item in row.get("category_counts", [])
-        if isinstance(item, dict) and int(item.get("count") or 0) > 0
+        "captured_bytes": size,
+        "message_count": messages,
+        "age_days": age,
+        "recent_project_peer_session_count": frequency,
+        **components,
+        "raw_score": raw,
+        "blacklight_score": min(99, math.floor(raw)),
     }
 
 
@@ -102,34 +114,26 @@ def _artifact_parse_details(detail: dict[str, Any]) -> dict[str, dict[str, Any]]
     return details
 
 
-def _rank_sessions(targeting: dict[str, Any], high_value: dict[str, Any]) -> list[dict[str, Any]]:
-    def normalized_tool(value: Any) -> str:
-        if str(value).lower() in {"muse code", "muse_code"}:
-            return "muse_code"
-        if str(value).lower() in {"muse code"}:
-            return "muse_code"
-        return str(value).lower().replace(" code", "").replace(" ", "_")
-
-    high_rows = {
-        (normalized_tool(row.get("tool")), str(row.get("session_id"))): row
-        for row in _finding_sessions(high_value)
-    }
+def _rank_sessions(targeting: dict[str, Any], reference_time: datetime) -> list[dict[str, Any]]:
+    rows = _targeting_rows(targeting)
+    recent_by_project: dict[tuple[str, str], set[tuple[str, str]]] = defaultdict(set)
+    for row in rows:
+        project = row.get("project_worktree_path")
+        stamp = _activity_time(row.get("last_activity"))
+        if project and stamp and max(0.0, (reference_time - stamp).total_seconds()) <= 30 * 86400:
+            recent_by_project[(row["tool"], project)].add((row["tool"], str(row.get("session_id"))))
     ranked = []
-    for row in _targeting_rows(targeting):
-        high = high_rows.get((normalized_tool(row.get("tool")), str(row.get("session_id"))))
-        enriched = dict(row)
-        enriched["blacklight_score"] = _session_score(row, high)
-        enriched["indicator_categories"] = sorted(_category_names(high))
-        enriched["high_value_detail"] = high
-        ranked.append(enriched)
-    ranked.sort(
-        key=lambda item: (
-            int(item["blacklight_score"]),
-            int(item.get("captured_total_bytes") or 0),
-            str(item.get("last_activity") or ""),
-        ),
-        reverse=True,
-    )
+    for row in rows:
+        peers = recent_by_project.get((row["tool"], row.get("project_worktree_path")), set())
+        identity = (row["tool"], str(row.get("session_id")))
+        scoring = _session_score(row, reference_time, len(peers) - int(identity in peers))
+        ranked.append({**row, "blacklight_score": scoring["blacklight_score"], "scoring": scoring})
+    # Stable sorts preserve ascending identity ties after descending score/activity ordering.
+    ranked.sort(key=lambda item: (str(item["tool"]), str(item.get("session_id") or "")))
+    ranked.sort(key=lambda item: (
+        item["scoring"]["raw_score"], item["scoring"]["captured_bytes"],
+        _activity_time(item.get("last_activity")) or datetime.min.replace(tzinfo=timezone.utc),
+    ), reverse=True)
     tool_ranks: Counter[str] = Counter()
     for index, row in enumerate(ranked, start=1):
         row["blacklight_rank"] = index
@@ -158,16 +162,9 @@ def _source_scan_targets(
         path = str(source.path.resolve())
         rows = sessions_by_path.get(path, [])
         best_score = max((int(row["blacklight_score"]) for row in rows), default=0)
-        categories = {category for row in rows for category in row.get("indicator_categories", [])}
         reasons = ["supported structured session artifact"]
         if best_score >= 60:
             reasons.append("high activity")
-        if "internal_host" in categories or "network_target" in categories:
-            reasons.append("internal host indicators")
-        if "credential_secret" in categories:
-            reasons.append("credential-like indicators")
-        if categories & {"cloud_identity", "source_control"}:
-            reasons.append("cloud or repository indicators")
         if any(row.get("project_worktree_path") for row in rows):
             reasons.append("project or worktree context")
         status = parse_statuses.get(path, "parse_failed")
@@ -196,25 +193,12 @@ def _normalize_reason(reason: str) -> str:
     return _REASON_SUFFIX_RE.sub("", reason).strip()
 
 
-def _high_value_category_counts(high_value: dict[str, Any]) -> list[dict[str, Any]]:
-    totals: Counter[str] = Counter()
-    for tool in high_value.get("tools", []):
-        for finding in tool.get("findings", []):
-            value = finding.get("value")
-            if not isinstance(value, dict):
-                continue
-            for entry in value.get("aggregate", {}).get("category_counts", []):
-                totals[str(entry.get("category"))] += int(entry.get("count") or 0)
-    return [{"category": category, "count": count} for category, count in sorted(totals.items())]
-
-
 def _report_summary(
     discovery: SessionInputDiscovery,
     parsed_count: int,
     parse_failure_count: int,
     sessions_recovered: int,
     detail: dict[str, Any],
-    high_value: dict[str, Any],
     targeting: dict[str, Any],
 ) -> dict[str, Any]:
     summary = {
@@ -231,7 +215,6 @@ def _report_summary(
         "sessions_recovered": sessions_recovered,
     }
     detail_summary = detail.get("summary", {})
-    high_value_summary = high_value.get("summary", {})
     targeting_summary = targeting.get("summary", {})
     summary.update(
         {
@@ -244,14 +227,7 @@ def _report_summary(
             "total_request_bytes": detail_summary.get("total_request_bytes"),
             "total_response_bytes": detail_summary.get("total_response_bytes"),
             "total_machine_context_bytes": detail_summary.get("total_machine_context_bytes"),
-            "indicator_rule_count": high_value_summary.get("rule_count"),
-            "total_indicator_count": high_value_summary.get("total_indicator_count"),
-            "total_unique_indicator_count": high_value_summary.get("total_unique_indicator_count"),
-            "total_match_count": high_value_summary.get("total_match_count"),
-            "total_high_value_score": high_value_summary.get("total_high_value_score"),
-            "total_unique_high_value_score": high_value_summary.get("total_unique_high_value_score"),
             "response_status_counts": targeting_summary.get("response_status_counts"),
-            "indicator_category_counts": _high_value_category_counts(high_value),
         }
     )
     return summary
@@ -303,6 +279,7 @@ def _session_report_text_lines(
         for (status, reason), count in warning_counts.most_common():
             lines.append(f"- {status}: {count} file(s) - {reason}")
 
+    lines.extend(["", f"Scoring ({SCORING_VERSION}): " + SCORING_FORMULA])
     lines.extend(["", f"Top sessions ({len(top_sessions)} of {len(ranked_sessions)}; up to 5 per tool):"])
     for tool in dict.fromkeys(row["tool"] for row in top_sessions):
         lines.append(f"{tool}:")
@@ -324,6 +301,7 @@ def _write_session_report(
     top_sessions: list[dict[str, Any]],
     scan_targets: list[dict[str, Any]],
     summary: dict[str, Any],
+    scoring: dict[str, Any],
     run_id: str,
     root: Path,
     output: Path,
@@ -348,10 +326,11 @@ def _write_session_report(
             "raw_message_text_included": False,
             "raw_credential_values_included": False,
             "semantic_parsing_included": True,
-            "sensitivity_scoring_included": True,
+            "sensitivity_scoring_included": False,
             "config_values_included": False,
             "session_titles_included": True,
         },
+        "scoring": scoring,
         "summary": summary,
         "artifact_inventory": inventory,
         "sessions": ranked_sessions,
@@ -381,6 +360,15 @@ def run_sessions_analysis(
     local_mode: bool = False,
     progress_callback: ProgressCallback | None = None,
 ) -> dict[str, Any]:
+    reference_time = datetime.now(timezone.utc)
+    scoring = {
+        "version": SCORING_VERSION,
+        "reference_time_utc": reference_time.isoformat().replace("+00:00", "Z"),
+        "formula": SCORING_FORMULA,
+        "missing_activity": "Zero recency points; excluded from project frequency counts.",
+        "future_activity": "Clamped to age zero, including for project frequency counts.",
+        "missing_project": "Zero frequency points.",
+    }
     run_id = run_id or default_session_run_id()
     discover = discover_local_session_inputs if local_mode else discover_session_inputs
     discovery = discover(Path(input_path).expanduser(), **({"tool": tool} if local_mode else {"tool_hint": tool}),
@@ -398,17 +386,10 @@ def run_sessions_analysis(
         progress_callback=progress_callback,
         input_root=root,
     )
-    high_value = run_session_high_value(
-        run_id=run_id,
-        output_directory=None,
-        session_sources=discovery.sources,
-        progress_callback=progress_callback,
-        input_root=root,
-    )
     if progress_callback is not None:
         progress_callback(ProgressEvent("Writing reports"))
     targeting = build_session_targeting_report({"session_detail": detail})
-    ranked_sessions = _rank_sessions(targeting, high_value)
+    ranked_sessions = _rank_sessions(targeting, reference_time)
     top_sessions = _top_sessions_per_tool(ranked_sessions)
     statuses = _artifact_parse_status(detail)
     scan_targets = _source_scan_targets(discovery.sources, ranked_sessions, statuses)
@@ -418,9 +399,9 @@ def run_sessions_analysis(
         + sum(status == "parse_failed" for status in statuses.values())
         + _partial_parse_error_count(detail)
     )
-    summary = _report_summary(discovery, parsed_count, parse_failure_count, len(ranked_sessions), detail, high_value, targeting)
+    summary = _report_summary(discovery, parsed_count, parse_failure_count, len(ranked_sessions), detail, targeting)
     parse_details = _artifact_parse_details(detail)
-    report_paths = _write_session_report(discovery, statuses, parse_details, ranked_sessions, top_sessions, scan_targets, summary, run_id, root, output)
+    report_paths = _write_session_report(discovery, statuses, parse_details, ranked_sessions, top_sessions, scan_targets, summary, scoring, run_id, root, output)
     return {
         "run_id": run_id,
         "input_path": str(root),
@@ -440,6 +421,7 @@ def run_sessions_analysis(
             "skipped_link_count": discovery.skipped_links,
             "sessions_recovered": len(ranked_sessions),
         },
+        "scoring": scoring,
         "top_sessions": top_sessions,
         "scan_targets": scan_targets,
         "reports": {"session_report": report_paths},

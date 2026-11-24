@@ -388,7 +388,7 @@ DeviceProcessEvents
     or command_line matches regex @"\\appdata\\local\\programs\\muse(?:\\|$|[\\\"' ])"
     or command_line matches regex @"\\[.]claude[.]json(?:$|[\"' ])"
 | extend artifact_priority = iff(
-    command_line matches regex @"(auth[.]json|[.]credentials[.]json|config[.]toml|credentials[.]toml|default[.]rules|session_index[.]jsonl|history[.]jsonl|store[.]db|ai-code-tracking[.]db|mcp_config[.]json|conversation_summaries[.]db|active_sessions[.]json|session_search[.]sqlite|worktrees[.]db|session-roots[.]json|config[.]json|data[.]sqlite3|opencode[.]db|cli[.]json|mcp[.]json|opencode[.]json|settings[.]json|trust[.]json|session-index[.]db)",
+    command_line matches regex @"(auth[.]json|[.]credentials[.]json|config[.]toml|credentials[.]toml|default[.]rules|session_index[.]jsonl|history[.]jsonl|store[.]db|ai-code-tracking[.]db|mcp_config[.]json|conversation_summaries[.]db|active_sessions[.]json|session_search[.]sqlite|worktrees[.]db|session-roots[.]json|sessions[.]db|config[.]json|data[.]sqlite3|opencode[.]db|cli[.]json|mcp[.]json|opencode[.]json|settings[.]json|trust[.]json|session-index[.]db)",
     "high_value_child",
     "root_or_other_child"
   )

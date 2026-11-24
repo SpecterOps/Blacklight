@@ -1,3 +1,5 @@
+<img src="../docs/assets/Blacklight_Vertical_WhiteText.png" alt="Blacklight — Illuminating AI agent artifacts" width="100%">
+
 # Blacklight Scout
 
 Blacklight Scout is the **endpoint collection** component of Blacklight. It discovers known AI-tool locations and emits bounded, metadata-only filesystem triage for collection and review.
@@ -41,6 +43,23 @@ execute_assembly -Assembly ai_path_scout-managed.exe
 ```
 
 The executable tier accepts `--include-tool`, `--max-depth` (`0` through `4`), `--discovery-cap N`, and `--out`. Tool IDs are `codex`, `claude_code`, `cursor`, `antigravity_cli`, `grok`, `devin`, `strands`, `kiro`, `opencode`, and `muse_code`; common aliases such as `claude-code`, `antigravity-cli`, `grok-cli`, `devin-cli`, `strands-cli`, `kiro-cli`, `opencode-ai`, `muse`, and `muse-code` also work.
+
+### macOS standalone Scout
+
+```bash
+make -C blacklight-scout/native macos-exe
+./out/build/scout/ai_path_scout-macos
+./out/build/scout/ai_path_scout-macos --verbose > scout-inventory.txt
+```
+
+The macOS/Linux standalone default is a compact operator report: per-tool counts,
+bounded collection/configuration leads, the newest scanned session per tool, and
+Cursor IDE database leads with companion status. `--verbose` prints the full
+retained path inventory and the top three sessions per tool. Discovery limits
+still apply in both modes; a partial scan cannot establish the globally newest
+session. Antigravity conversation indexes, annotation/crash/terminal-state directories, and summary database companion status are collection leads in the compact report. Index contents are parsed only by offline Session Analysis.
+Terminal/tool-output and temporary MCP paths remain discoverable without
+flooding the default report.
 
 ### macOS and Linux libraries
 

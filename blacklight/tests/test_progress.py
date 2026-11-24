@@ -7,6 +7,7 @@ import tempfile
 import threading
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -35,7 +36,7 @@ class TerminalProgressTests(unittest.TestCase):
                     refreshed.set()
 
         with ObservedProgress(stream=stream) as progress:
-            progress.update(ProgressEvent("Scanning indicators", 0, 1))
+            progress.update(ProgressEvent("Parsing sessions", 0, 1))
             self.assertTrue(refreshed.wait(3), "Display stopped refreshing during slow work")
             self.assertIn("0/1 files", stream.getvalue())
             self.assertIn("files  /", stream.getvalue())
@@ -70,7 +71,7 @@ class TerminalProgressTests(unittest.TestCase):
                 with patch("blacklight.progress.shutil.get_terminal_size", return_value=os.terminal_size((width, 24))):
                     with patch("blacklight.progress.time.monotonic", return_value=84):
                         progress = TerminalProgress(stream=stream)
-                        progress.update(ProgressEvent("Scanning indicators", 120, 300))
+                        progress.update(ProgressEvent("Parsing sessions", 120, 300))
                         progress._render()
                 self.assertLessEqual(len(stream.getvalue().lstrip("\r")), width - 1)
                 if width == 100:
@@ -108,12 +109,15 @@ class AnalysisProgressTests(unittest.TestCase):
                 options = dict(local_mode=local_mode, output_directory=self.root / "blacklight-reports", run_id="PROGRESS")
                 result = run_sessions_analysis(self.root, progress_callback=events.append, **options)
                 phases = list(dict.fromkeys(event.phase for event in events))
-                self.assertEqual(phases, ["Discovering files", "Identifying supported artifacts", "Parsing sessions", "Scanning indicators", "Writing reports"])
+                self.assertEqual(phases, ["Discovering files", "Identifying supported artifacts", "Parsing sessions", "Writing reports"])
                 self._assert_phase(events, "Identifying supported artifacts", result["summary"]["files_examined"])
-                for phase in ["Parsing sessions", "Scanning indicators"]:
-                    self._assert_phase(events, phase, result["summary"]["supported_artifacts"])
+                self._assert_phase(events, "Parsing sessions", result["summary"]["supported_artifacts"])
                 self.assertGreater(result["summary"]["parse_failures"], 0)
-                self.assertEqual(result, run_sessions_analysis(self.root, **options))
+                with patch("blacklight.sessions.datetime") as clock:
+                    clock.now.return_value = datetime.fromisoformat(result["scoring"]["reference_time_utc"].replace("Z", "+00:00"))
+                    clock.fromisoformat.side_effect = datetime.fromisoformat
+                    clock.min = datetime.min
+                    self.assertEqual(result, run_sessions_analysis(self.root, **options))
                 report = json.loads(Path(result["reports"]["session_report"]["json"]).read_text())
                 self.assertNotIn("progress", report)
 
@@ -128,7 +132,6 @@ class AnalysisProgressTests(unittest.TestCase):
         events = []
         result = run_sessions_analysis(self.root / "empty-home", local_mode=True, output_directory=self.root / "empty-report", progress_callback=events.append)
         self._assert_phase(events, "Parsing sessions", 0)
-        self._assert_phase(events, "Scanning indicators", 0)
         self.assertEqual(result["summary"]["supported_artifacts"], 0)
 
     def test_handled_parser_failures_still_advance(self) -> None:
@@ -137,10 +140,9 @@ class AnalysisProgressTests(unittest.TestCase):
         # Remove inputs after discovery to exercise handled per-file read failures.
         for source in discovery.sources:
             source.path.unlink()
-        for parser, phase in [(analyze.run_session_detail, "Parsing sessions"), (analyze.run_session_high_value, "Scanning indicators")]:
-            events = []
-            parser(run_id="FAILED", session_sources=discovery.sources, input_root=self.root, progress_callback=events.append)
-            self._assert_phase(events, phase, len(discovery.sources))
+        events = []
+        analyze.run_session_detail(run_id="FAILED", session_sources=discovery.sources, input_root=self.root, progress_callback=events.append)
+        self._assert_phase(events, "Parsing sessions", len(discovery.sources))
 
     def test_cli_json_stdout_and_progress_switch(self) -> None:
         self._mixed_sources()

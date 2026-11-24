@@ -3,8 +3,8 @@
 /*
  * Blacklight Scout - POSIX loader for AI path scout
  *
- * No-argument filesystem triage for macOS and Linux shared libraries and
- * standalone executables.
+ * Filesystem triage for macOS and Linux. Shared libraries ignore arguments;
+ * standalone executables support --verbose for full inventory output.
  */
 
 #include <stdio.h>
@@ -20,6 +20,7 @@
 #include "ai_path_scout_core.h"
 
 static int g_auto_select_count = 0;
+static int g_verbose_output = 0;
 
 #define BL_MAX_OPERATOR_TARGETS 256
 #define BL_SESSION_SCAN_LIMIT 10000
@@ -28,8 +29,14 @@ static int g_auto_select_count = 0;
 #define BL_TOP_SESSIONS_PER_TOOL 3
 #define BL_TOP_SESSION_COUNT (BL_SESSION_TOOL_COUNT * BL_TOP_SESSIONS_PER_TOOL)
 #define BL_DYNAMIC_DISCOVERY_LIMIT 5000
-#define BL_DYNAMIC_ROOT_LIMIT (BL_DYNAMIC_DISCOVERY_LIMIT / 4)
+#define BL_DYNAMIC_ROOT_LIMIT (BL_DYNAMIC_DISCOVERY_LIMIT / 6)
 #define BL_DYNAMIC_DISCOVERY_MAX_DEPTH 6
+#ifdef __APPLE__
+#define BL_CURSOR_WORKSPACE_ROOT "/Library/Application Support/Cursor/User/workspaceStorage"
+#else
+#define BL_CURSOR_WORKSPACE_ROOT "/.config/Cursor/User/workspaceStorage"
+#endif
+
 #define BL_CHILD_ENTRY_SCAN_LIMIT 10000
 #define BL_PLAN_PREVIEW_COUNT 5
 #define BL_OUTPUT_CAPACITY (64 * 1024)
@@ -115,6 +122,7 @@ static int g_dynamic_scan_partial = 0;
 static int g_operator_target_overflow = 0;
 static int g_child_entries_scanned = 0;
 static int g_child_scan_partial = 0;
+static unsigned int g_relocatable_env_flags = 0;
 
 static void inline_memset(void *dest, int value, size_t count) {
     unsigned char *d = (unsigned char *)dest;
@@ -943,6 +951,95 @@ static void print_top_session_files(void) {
     printf("[i]\n");
 }
 
+static void print_compact_path(const char *label, const char *path) {
+    printf("[i]   %s: ", label);
+    print_escaped_path(path);
+    printf("\n");
+}
+
+static int compact_primary_database(const bl_operator_target_t *target) {
+    return target_is_file(target) && ((strcmp(target->tool, "antigravity_cli") == 0 &&
+        ends_with_ci(target->path, "/conversation_summaries.db")) || (strcmp(target->tool, "cursor") == 0 &&
+        (ends_with_ci(target->path, "/User/globalStorage/state.vscdb") ||
+         ends_with_ci(target->path, "/User/globalStorage/conversation-search.db"))));
+}
+
+static void print_compact_triage_summary(void) {
+    static const char *tools[] = {"codex", "claude_code", "cursor", "antigravity_cli", "grok", "devin", "strands", "kiro", "opencode", "muse_code"};
+    int t;
+    int partial = g_dynamic_scan_partial || g_operator_target_overflow || g_session_scan_partial;
+    printf("[i] Blacklight endpoint assessment | %s\n", partial ? "PARTIAL" : "COMPLETE");
+    if (partial) printf("[!] Counts and newest-session selections cover scanned files only.\n");
+    if (!g_operator_target_count) printf("[i] No recognized artifacts found.\n");
+    for (t = 0; t < BL_SESSION_TOOL_COUNT; t++) {
+        int i, count = 0, credentials = 0, configs = 0;
+        int slot = session_tool_slot(tools[t]);
+        const bl_session_candidate_t *newest = &g_top_sessions[t * BL_TOP_SESSIONS_PER_TOOL];
+        for (i = 0; i < g_operator_target_count; i++) if (target_tool_is(&g_operator_targets[i], tools[t])) count++;
+        if (!count) continue;
+        printf("[i]\n[i] %s | %d inventory entries | %d session artifact%s\n", tools[t], count,
+            slot >= 0 ? g_session_artifact_counts[slot] : 0,
+            slot >= 0 && g_session_artifact_counts[slot] == 1 ? "" : "s");
+        for (i = 0; i < g_operator_target_count; i++) {
+            const bl_operator_target_t *target = &g_operator_targets[i];
+            if (!target_tool_is(target, tools[t])) continue;
+            if (strcmp(target->tool, "antigravity_cli") == 0 &&
+                (ends_with_ci(target->path, "/jetbox_summaries_proto.pb") ||
+                 ends_with_ci(target->path, "/cache/conversation_metadata.json") ||
+                 ends_with_ci(target->path, "/annotations") || ends_with_ci(target->path, "/crashes") ||
+                 ends_with_ci(target->path, "/persistent_terminals")))
+                print_compact_path("collection lead", target->path);
+            if (!target_is_file(target)) continue;
+            if (target->priority_tier == 1 && credentials < 2 &&
+                (target_family_is(target, "auth") || target_family_is(target, "config") || target_family_is(target, "mcp"))) {
+                print_compact_path("collection lead", target->path);
+                credentials++;
+            } else if (configs < 1 && (target_family_is(target, "config") || target_family_is(target, "mcp")) &&
+                (ends_with_ci(target->path, "/config.toml") || ends_with_ci(target->path, "/settings.json") ||
+                 ends_with_ci(target->path, "/mcp.json") || ends_with_ci(target->path, "/cli-config.json"))) {
+                print_compact_path("config", target->path);
+                configs++;
+            }
+            if (compact_primary_database(target)) {
+                char size_text[32];
+                char companion[BL_MAX_PATH_LEN];
+                int wal = 0, shm = 0, j;
+                format_size(target->size_bytes, size_text, sizeof(size_text));
+                for (j = 0; j < g_operator_target_count; j++) {
+                    if (snprintf(companion, sizeof(companion), "%s-wal", target->path) < (int)sizeof(companion) &&
+                        strcmp(g_operator_targets[j].path, companion) == 0) wal = 1;
+                    if (snprintf(companion, sizeof(companion), "%s-shm", target->path) < (int)sizeof(companion) &&
+                        strcmp(g_operator_targets[j].path, companion) == 0) shm = 1;
+                }
+                printf("[i]   %s database (%s; inventory only%s%s): ", strcmp(target->tool, "antigravity_cli") == 0 ? "Conversation" : "IDE", size_text, wal ? "; WAL present" : "", shm ? "; SHM present" : "");
+                print_escaped_path(target->path);
+                printf("\n");
+            }
+        }
+        if (newest->tool) {
+            char size_text[32];
+            struct tm *utc;
+            time_t modified = (time_t)newest->modified_time;
+            format_size(newest->size_bytes, size_text, sizeof(size_text));
+            utc = gmtime(&modified);
+            printf("[+]   Newest session | %s", size_text);
+            if (utc) printf(" | %04d-%02d-%02d", utc->tm_year + 1900, utc->tm_mon + 1, utc->tm_mday);
+            printf("\n      ");
+            print_escaped_path(newest->path);
+            printf("\n");
+        }
+    }
+    {
+        char reloc_summary[256];
+        if (bl_relocatable_env_summary(g_relocatable_env_flags, reloc_summary, sizeof(reloc_summary)))
+            printf("[i] Relocatable env set: %s\n", reloc_summary);
+    }
+    if (g_operator_target_overflow) printf("[!] Result storage cap reached at %d artifacts. Results are incomplete.\n", BL_MAX_OPERATOR_TARGETS);
+    if (g_dynamic_scan_partial) printf("[!] Discovery cap reached (entries/depth); results are incomplete.\n");
+    if (g_session_scan_partial) printf("[!] Session scan incomplete; counts are lower bounds.\n");
+    printf("[i] Full path inventory: rerun the standalone Scout with --verbose.\n");
+}
+
 static void print_operator_triage_summary(void) {
     int i, tools = 0, auth = 0, sessions = 0, session_artifacts = 0;
     printf("[i] Blacklight endpoint assessment\n[i]\n");
@@ -963,6 +1060,12 @@ static void print_operator_triage_summary(void) {
     if (sessions) printf("[i]   Session locations:    %d\n", sessions);
     for (i = 0; i < BL_SESSION_TOOL_COUNT; i++) session_artifacts += g_session_artifact_counts[i];
     if (sessions || g_session_scan_partial) printf("[i]   Session artifacts:    %d%s\n", session_artifacts, g_session_scan_partial ? " (partial scan)" : "");
+    {
+        char reloc_summary[256];
+        if (bl_relocatable_env_summary(g_relocatable_env_flags, reloc_summary, sizeof(reloc_summary))) {
+            printf("[i]   Relocatable env set:  %s\n", reloc_summary);
+        }
+    }
     printf("%s   Discovery status:     %s\n[i]\n", (g_dynamic_scan_partial || g_operator_target_overflow || g_session_scan_partial) ? "[!]" : "[i]", (g_dynamic_scan_partial || g_operator_target_overflow || g_session_scan_partial) ? "PARTIAL" : "COMPLETE");
     qsort(
         g_operator_targets,
@@ -1097,7 +1200,7 @@ static void scan_dynamic_tree(
     const char *tool,
     const char *directory,
     int depth,
-    int include_plan_metadata,
+    int discovery_mode,
     bl_scan_results_t *results,
     const bl_scan_filters_t *filters,
     bl_emit_fn emit
@@ -1113,6 +1216,7 @@ static void scan_dynamic_tree(
             g_dynamic_root_entries_scanned >= BL_DYNAMIC_ROOT_LIMIT) g_dynamic_scan_partial = 1;
         return;
     }
+    if (lstat(directory, &info) != 0 || !S_ISDIR(info.st_mode) || S_ISLNK(info.st_mode)) return;
     dir = opendir(directory);
     if (!dir) return;
     directory_len = inline_strlen(directory);
@@ -1128,16 +1232,140 @@ static void scan_dynamic_tree(
         if (directory_len && child[directory_len - 1] != '/') child[directory_len] = '/';
         if (!append_text(child, sizeof(child), entry->d_name) || lstat(child, &info) != 0 || S_ISLNK(info.st_mode)) continue;
         if (S_ISDIR(info.st_mode)) {
-            if (depth > 0) scan_dynamic_tree(tool, child, depth - 1, include_plan_metadata, results, filters, emit);
-        } else if (S_ISREG(info.st_mode) && strcmp(entry->d_name, ".mcp.json") == 0) {
+            if (strcmp(tool, "cursor") == 0 && !discovery_mode && depth == BL_DYNAMIC_DISCOVERY_MAX_DEPTH - 1 &&
+                (strcmp(entry->d_name, "terminals") == 0 || strcmp(entry->d_name, "agent-tools") == 0)) {
+                scan_dynamic_tree(tool, child, depth - 1, BL_DISCOVERY_PROJECT_OUTPUTS, results, filters, emit);
+                continue;
+            }
+            if ((discovery_mode == BL_DISCOVERY_PROJECT_OUTPUTS || discovery_mode == BL_DISCOVERY_CHAT_COMPANIONS) && depth == 0) { g_dynamic_scan_partial = 1; continue; }
+            if (strcmp(tool, "cursor") == 0 && !discovery_mode && depth == BL_DYNAMIC_DISCOVERY_MAX_DEPTH - 1 && strcmp(entry->d_name, "mcps") == 0) {
+                report_dynamic_file(tool, "mcp", child, results, filters, emit);
+                continue;
+            }
+            if (depth > 0) scan_dynamic_tree(tool, child, depth - 1, discovery_mode, results, filters, emit);
+        } else if (S_ISREG(info.st_mode) && discovery_mode == BL_DISCOVERY_PROJECT_OUTPUTS) {
+            report_dynamic_file(tool, "workspace", child, results, filters, emit);
+        } else if (S_ISREG(info.st_mode) && discovery_mode == BL_DISCOVERY_CHAT_COMPANIONS && (strcmp(entry->d_name, "store.db-wal") == 0 || strcmp(entry->d_name, "store.db-shm") == 0)) {
+            report_dynamic_file(tool, "sessions", child, results, filters, emit);
+        } else if (S_ISREG(info.st_mode) && discovery_mode == BL_DISCOVERY_WORKSPACE_DATABASES && depth == 0 && (strcmp(entry->d_name, "state.vscdb") == 0 || strcmp(entry->d_name, "state.vscdb-wal") == 0 || strcmp(entry->d_name, "state.vscdb-shm") == 0 || strcmp(entry->d_name, "state.vscdb.backup") == 0 || strcmp(entry->d_name, "state.vscdb.backup-wal") == 0 || strcmp(entry->d_name, "state.vscdb.backup-shm") == 0)) {
+            report_dynamic_file(tool, "sessions", child, results, filters, emit);
+        } else if (S_ISREG(info.st_mode) && strcmp(tool, "cursor") == 0 && !discovery_mode && depth == BL_DYNAMIC_DISCOVERY_MAX_DEPTH - 1 && strcmp(entry->d_name, ".workspace-trusted") == 0) {
+            report_dynamic_file(tool, "workspace", child, results, filters, emit);
+        } else if (!discovery_mode && S_ISREG(info.st_mode) && strcmp(entry->d_name, ".mcp.json") == 0) {
             report_dynamic_file(tool, "mcp", child, results, filters, emit);
         } else if (S_ISREG(info.st_mode) && strcmp(tool, "claude_code") == 0 && strcmp(entry->d_name, "sessions-index.json") == 0) {
             report_dynamic_file(tool, "sessions", child, results, filters, emit);
-        } else if (S_ISREG(info.st_mode) && include_plan_metadata && ends_with_ci(entry->d_name, ".plan.md")) {
+        } else if (S_ISREG(info.st_mode) && discovery_mode == 1 && ends_with_ci(entry->d_name, ".plan.md")) {
             report_dynamic_file(tool, "plans", child, results, filters, emit);
         }
     }
     closedir(dir);
+}
+
+static int posix_join_root_relative(char *out, size_t out_size, const char *root, const char *relative) {
+    size_t root_len;
+    if (!out || out_size == 0 || !root || !*root) {
+        return 0;
+    }
+    inline_memset(out, 0, out_size);
+    if (!append_text(out, out_size, root)) {
+        return 0;
+    }
+    if (!relative || !*relative) {
+        return 1;
+    }
+    root_len = inline_strlen(out);
+    if (root_len > 0 && out[root_len - 1] != '/') {
+        if (!append_text(out, out_size, "/")) {
+            return 0;
+        }
+    }
+    return append_text(out, out_size, relative);
+}
+
+static void posix_report_env_targets(
+    const char *tool,
+    const char *root,
+    const bl_env_relative_target_t *targets,
+    size_t target_count,
+    bl_scan_results_t *results,
+    const bl_scan_filters_t *filters,
+    bl_emit_fn emit
+) {
+    size_t i;
+    char path[BL_MAX_PATH_LEN];
+    if (!tool || !root || !*root || !targets || !results || !emit) {
+        return;
+    }
+    for (i = 0; i < target_count; i++) {
+        if (!posix_join_root_relative(path, sizeof(path), root, targets[i].relative)) {
+            continue;
+        }
+        posix_report_path_if_exists(tool, targets[i].family, path, results, filters, emit);
+    }
+}
+
+static void scan_relocatable_env_targets(
+    bl_scan_results_t *results,
+    const bl_scan_filters_t *filters,
+    bl_emit_fn emit
+) {
+    const char *devin_sessions_dir = getenv("DEVIN_SESSIONS_DIR");
+    const char *devin_session_store = getenv("DEVIN_SESSION_STORE");
+    const char *kiro_home = getenv("KIRO_HOME");
+    const char *kiro_sessions_dir = getenv("KIRO_SESSIONS_DIR");
+    const char *home = getenv("HOME");
+    size_t i;
+    char path[BL_MAX_PATH_LEN];
+
+    g_relocatable_env_flags = 0;
+    if (devin_sessions_dir && *devin_sessions_dir) {
+        g_relocatable_env_flags |= BL_RELOC_DEVIN_SESSIONS_DIR;
+        posix_report_env_targets(
+            "devin",
+            devin_sessions_dir,
+            BL_DEVIN_SESSIONS_DIR_TARGETS,
+            BL_DEVIN_SESSIONS_DIR_TARGETS_COUNT,
+            results,
+            filters,
+            emit
+        );
+    }
+    if (devin_session_store && bl_ascii_equals_ci(devin_session_store, "files")) {
+        g_relocatable_env_flags |= BL_RELOC_DEVIN_SESSION_STORE_FILES;
+        if (!(g_relocatable_env_flags & BL_RELOC_DEVIN_SESSIONS_DIR) && home && *home) {
+            for (i = 0; i < BL_DEVIN_DEFAULT_SESSION_ROOTS_COUNT; i++) {
+                if (!posix_join_root_relative(path, sizeof(path), home, BL_DEVIN_DEFAULT_SESSION_ROOTS[i])) {
+                    continue;
+                }
+                posix_report_path_if_exists("devin", "sessions", path, results, filters, emit);
+            }
+        }
+    }
+    if (kiro_home && *kiro_home) {
+        g_relocatable_env_flags |= BL_RELOC_KIRO_HOME;
+        posix_report_env_targets(
+            "kiro",
+            kiro_home,
+            BL_KIRO_HOME_TARGETS,
+            BL_KIRO_HOME_TARGETS_COUNT,
+            results,
+            filters,
+            emit
+        );
+    }
+    if (kiro_sessions_dir && *kiro_sessions_dir) {
+        g_relocatable_env_flags |= BL_RELOC_KIRO_SESSIONS_DIR;
+        posix_report_env_targets(
+            "kiro",
+            kiro_sessions_dir,
+            BL_KIRO_SESSIONS_DIR_TARGETS,
+            BL_KIRO_SESSIONS_DIR_TARGETS_COUNT,
+            results,
+            filters,
+            emit
+        );
+    }
 }
 
 static void scan_dynamic_targets(
@@ -1184,6 +1412,15 @@ static void scan_dynamic_targets(
     g_dynamic_root_entries_scanned = 0;
     if (append_text(root, sizeof(root), home) && append_text(root, sizeof(root), "/.cursor/plans"))
         scan_dynamic_tree("cursor", root, 0, 1, results, filters, emit);
+    inline_memset(root, 0, sizeof(root));
+    g_dynamic_root_entries_scanned = 0;
+    if (append_text(root, sizeof(root), home) && append_text(root, sizeof(root), "/.cursor/chats"))
+        scan_dynamic_tree("cursor", root, BL_DYNAMIC_DISCOVERY_MAX_DEPTH, BL_DISCOVERY_CHAT_COMPANIONS, results, filters, emit);
+
+    inline_memset(root, 0, sizeof(root));
+    g_dynamic_root_entries_scanned = 0;
+    if (append_text(root, sizeof(root), home) && append_text(root, sizeof(root), BL_CURSOR_WORKSPACE_ROOT))
+        scan_dynamic_tree("cursor", root, 1, BL_DISCOVERY_WORKSPACE_DATABASES, results, filters, emit);
 }
 
 static void run_posix_triage(void) {
@@ -1202,6 +1439,7 @@ static void run_posix_triage(void) {
     g_dynamic_scan_partial = 0;
     g_child_entries_scanned = 0;
     g_child_scan_partial = 0;
+    g_relocatable_env_flags = 0;
 
     bl_scan_static_targets(
         BL_STATIC_TARGETS,
@@ -1212,25 +1450,27 @@ static void run_posix_triage(void) {
         posix_report_path_if_exists,
         posix_emit_triage
     );
+    scan_relocatable_env_targets(&results, &filters, posix_emit_triage);
     scan_dynamic_targets(&results, &filters, posix_emit_triage);
     scan_session_candidates();
-    print_operator_triage_summary();
+    if (g_verbose_output) print_operator_triage_summary();
+    else print_compact_triage_summary();
 }
 
 __attribute__((visibility("default"))) char *bl_scout_run(int argc, char **argv) {
     char *result;
     (void)argc;
     (void)argv;
+    g_verbose_output = 0;
     run_posix_triage();
     result = strdup(g_output);
     return result;
 }
 
 int main(int argc, char **argv) {
-    char *output = bl_scout_run(argc, argv);
-    if (output) {
-        fputs(output, stdout);
-        free(output);
-    }
+    int i;
+    for (i = 1; i < argc; i++) if (strcmp(argv[i], "--verbose") == 0) g_verbose_output = 1;
+    run_posix_triage();
+    fputs(g_output, stdout);
     return 0;
 }

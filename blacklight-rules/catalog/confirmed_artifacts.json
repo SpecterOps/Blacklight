@@ -27,6 +27,11 @@
       "kind": "documentation",
       "path": "docs/architecture.md",
       "note": "Operator collection guidance with upstream documentation references; deferred paths are not runtime findings."
+    },
+    "blacklight.scout.cursor_inventory": {
+      "kind": "code",
+      "path": "blacklight-scout/native/ai_path_scout_posix.c",
+      "note": "Bounded metadata-only Cursor IDE and project artifact discovery; no content parsing."
     }
   },
   "detection_boundaries": {
@@ -56,7 +61,8 @@
       "\\.config\\muse",
       "\\.local\\share\\muse",
       "\\.muse",
-      "\\AppData\\Local\\Programs\\muse"
+      "\\AppData\\Local\\Programs\\muse",
+      "\\AppData\\Roaming\\Cursor"
     ],
     "posix_roots": [
       "/.codex",
@@ -81,7 +87,10 @@
       "/.config/muse",
       "/.local/share/muse",
       "/.muse",
-      "/AppData/Local/Programs/muse"
+      "/AppData/Local/Programs/muse",
+      "/AppData/Roaming/Cursor",
+      "/Library/Application Support/Cursor",
+      "/.config/Cursor"
     ],
     "standalone_home_files": [
       ".claude.json"
@@ -763,6 +772,18 @@
       "assessment_coverage": "recursively_discovered"
     },
     {
+      "id": "cursor.agent_transcripts_subagents",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": ".cursor/projects/*/agent-transcripts/*/subagents/**/*.jsonl",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.analyze.run_session_detail"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
       "id": "cursor.worktrees",
       "tool": "cursor",
       "family": "worktrees",
@@ -1286,6 +1307,30 @@
       "assessment_coverage": "explicitly_assessed"
     },
     {
+      "id": "devin.sessions_db_wal",
+      "tool": "devin",
+      "family": "sessions",
+      "relative_path": ".local/share/devin/cli/sessions.db-wal",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "devin.sessions_db_shm",
+      "tool": "devin",
+      "family": "sessions",
+      "relative_path": ".local/share/devin/cli/sessions.db-shm",
+      "path_kind": "file",
+      "priority": "low",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
       "id": "devin.root_cognition_legacy",
       "tool": "devin",
       "family": "root",
@@ -1424,6 +1469,30 @@
       "relative_path": "AppData/Roaming/devin/cli/logs",
       "path_kind": "directory",
       "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "devin.sessions_db_wal_localappdata",
+      "tool": "devin",
+      "family": "sessions",
+      "relative_path": "AppData/Local/devin/cli/sessions.db-wal",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "devin.sessions_db_shm_localappdata",
+      "tool": "devin",
+      "family": "sessions",
+      "relative_path": "AppData/Local/devin/cli/sessions.db-shm",
+      "path_kind": "file",
+      "priority": "low",
       "confirmed_by": [
         "blacklight.scout.PATH_TARGETS"
       ],
@@ -1614,6 +1683,18 @@
       "tool": "kiro",
       "family": "sessions",
       "relative_path": ".kiro/sessions",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "kiro.memories",
+      "tool": "kiro",
+      "family": "history",
+      "relative_path": ".kiro/memories",
       "path_kind": "directory",
       "priority": "medium",
       "confirmed_by": [
@@ -2223,18 +2304,6 @@
       "assessment_coverage": "explicitly_assessed"
     },
     {
-      "id": "kiro.memories",
-      "tool": "kiro",
-      "family": "history",
-      "relative_path": ".kiro/memories",
-      "path_kind": "directory",
-      "priority": "medium",
-      "confirmed_by": [
-        "blacklight.scout.PATH_TARGETS"
-      ],
-      "assessment_coverage": "explicitly_assessed"
-    },
-    {
       "id": "kiro.v3_cli_sessions",
       "tool": "kiro",
       "family": "sessions",
@@ -2390,6 +2459,1466 @@
         "blacklight.scout.PATH_TARGETS"
       ],
       "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.thread_history_1_sqlite",
+      "tool": "codex",
+      "family": "sessions",
+      "relative_path": ".codex/thread_history_1.sqlite",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.thread_history_1_sqlite_wal",
+      "tool": "codex",
+      "family": "sessions",
+      "relative_path": ".codex/thread_history_1.sqlite-wal",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.thread_history_1_sqlite_shm",
+      "tool": "codex",
+      "family": "sessions",
+      "relative_path": ".codex/thread_history_1.sqlite-shm",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.logs_2_sqlite",
+      "tool": "codex",
+      "family": "logs",
+      "relative_path": ".codex/logs_2.sqlite",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.logs_2_sqlite_wal",
+      "tool": "codex",
+      "family": "logs",
+      "relative_path": ".codex/logs_2.sqlite-wal",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.logs_2_sqlite_shm",
+      "tool": "codex",
+      "family": "logs",
+      "relative_path": ".codex/logs_2.sqlite-shm",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.sqlite_codex_db",
+      "tool": "codex",
+      "family": "workspace",
+      "relative_path": ".codex/sqlite/codex.db",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.sqlite_codex_db_wal",
+      "tool": "codex",
+      "family": "workspace",
+      "relative_path": ".codex/sqlite/codex.db-wal",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.sqlite_codex_db_shm",
+      "tool": "codex",
+      "family": "workspace",
+      "relative_path": ".codex/sqlite/codex.db-shm",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.sqlite_codex_dev_db",
+      "tool": "codex",
+      "family": "workspace",
+      "relative_path": ".codex/sqlite/codex-dev.db",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.sqlite_codex_dev_db_wal",
+      "tool": "codex",
+      "family": "workspace",
+      "relative_path": ".codex/sqlite/codex-dev.db-wal",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.sqlite_codex_dev_db_shm",
+      "tool": "codex",
+      "family": "workspace",
+      "relative_path": ".codex/sqlite/codex-dev.db-shm",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.queue_1_sqlite",
+      "tool": "codex",
+      "family": "workspace",
+      "relative_path": ".codex/queue_1.sqlite",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.queue_1_sqlite_wal",
+      "tool": "codex",
+      "family": "workspace",
+      "relative_path": ".codex/queue_1.sqlite-wal",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.queue_1_sqlite_shm",
+      "tool": "codex",
+      "family": "workspace",
+      "relative_path": ".codex/queue_1.sqlite-shm",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.goals_1_sqlite",
+      "tool": "codex",
+      "family": "plans",
+      "relative_path": ".codex/goals_1.sqlite",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.memories_1_sqlite",
+      "tool": "codex",
+      "family": "workspace",
+      "relative_path": ".codex/memories_1.sqlite",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.hooks_json",
+      "tool": "codex",
+      "family": "config",
+      "relative_path": ".codex/hooks.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.app_server_daemon_settings_json",
+      "tool": "codex",
+      "family": "config",
+      "relative_path": ".codex/app-server-daemon/settings.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.transcription_history_jsonl",
+      "tool": "codex",
+      "family": "history",
+      "relative_path": ".codex/transcription-history.jsonl",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.code_review_plugin_reviews_sqlite",
+      "tool": "codex",
+      "family": "plugins",
+      "relative_path": ".codex/code-review-plugin/reviews.sqlite",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.skills",
+      "tool": "codex",
+      "family": "skills",
+      "relative_path": ".codex/skills",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.plugins",
+      "tool": "codex",
+      "family": "plugins",
+      "relative_path": ".codex/plugins",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.plans",
+      "tool": "codex",
+      "family": "plans",
+      "relative_path": ".codex/plans",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.automations",
+      "tool": "codex",
+      "family": "plans",
+      "relative_path": ".codex/automations",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.worktrees",
+      "tool": "codex",
+      "family": "worktrees",
+      "relative_path": ".codex/worktrees",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.computer_use",
+      "tool": "codex",
+      "family": "sandbox",
+      "relative_path": ".codex/computer-use",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.attachments",
+      "tool": "codex",
+      "family": "workspace",
+      "relative_path": ".codex/attachments",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.dictation_history",
+      "tool": "codex",
+      "family": "workspace",
+      "relative_path": ".codex/dictation-history",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.app_server_daemon",
+      "tool": "codex",
+      "family": "logs",
+      "relative_path": ".codex/app-server-daemon",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "codex.hook_trust",
+      "tool": "codex",
+      "family": "auth",
+      "relative_path": ".codex/.hook-trust",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.argv_json",
+      "tool": "cursor",
+      "family": "config",
+      "relative_path": ".cursor/argv.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.hooks_json",
+      "tool": "cursor",
+      "family": "config",
+      "relative_path": ".cursor/hooks.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.agent_cli_state_json",
+      "tool": "cursor",
+      "family": "config",
+      "relative_path": ".cursor/agent-cli-state.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_state_json",
+      "tool": "cursor",
+      "family": "workspace",
+      "relative_path": ".cursor/ide_state.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.commands",
+      "tool": "cursor",
+      "family": "config",
+      "relative_path": ".cursor/commands",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.computer_use_sidecar",
+      "tool": "cursor",
+      "family": "sandbox",
+      "relative_path": ".cursor/computer-use-sidecar",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.sandbox_policies",
+      "tool": "cursor",
+      "family": "sandbox",
+      "relative_path": ".cursor/sandbox-policies",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.projects_mcps",
+      "tool": "cursor",
+      "family": "mcp",
+      "relative_path": ".cursor/projects/*/mcps",
+      "path_kind": "glob",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "cursor.projects_workspace_trusted",
+      "tool": "cursor",
+      "family": "workspace",
+      "relative_path": ".cursor/projects/*/.workspace-trusted",
+      "path_kind": "glob",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.endpoint_assessment"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "codex.codex_global_state_json",
+      "tool": "codex",
+      "family": "workspace",
+      "relative_path": ".codex/.codex-global-state.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.docs.artifact_collection"
+      ],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "codex.codex_global_state_json_bak",
+      "tool": "codex",
+      "family": "workspace",
+      "relative_path": ".codex/.codex-global-state.json.bak",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.docs.artifact_collection"
+      ],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "cursor.chats_store_db_wal",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": ".cursor/chats/**/store.db-wal",
+      "path_kind": "glob",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.cursor_inventory",
+        "blacklight.docs.artifact_collection"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "cursor.chats_store_db_shm",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": ".cursor/chats/**/store.db-shm",
+      "path_kind": "glob",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.cursor_inventory",
+        "blacklight.docs.artifact_collection"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "cursor.projects_terminals",
+      "tool": "cursor",
+      "family": "workspace",
+      "relative_path": ".cursor/projects/*/terminals/**",
+      "path_kind": "glob",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.cursor_inventory",
+        "blacklight.docs.artifact_collection"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "cursor.projects_agent_tools",
+      "tool": "cursor",
+      "family": "workspace",
+      "relative_path": ".cursor/projects/*/agent-tools/**",
+      "path_kind": "glob",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.cursor_inventory",
+        "blacklight.docs.artifact_collection"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "cursor.projects_worker_log",
+      "tool": "cursor",
+      "family": "logs",
+      "relative_path": ".cursor/projects/*/worker.log",
+      "path_kind": "glob",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.docs.artifact_collection"
+      ],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "cursor.projects_agent_transcripts_compaction",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": ".cursor/projects/*/agent-transcripts/**/compaction/**",
+      "path_kind": "glob",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.docs.artifact_collection"
+      ],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "cursor.projects_canvases",
+      "tool": "cursor",
+      "family": "workspace",
+      "relative_path": ".cursor/projects/*/canvases/**",
+      "path_kind": "glob",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.docs.artifact_collection"
+      ],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "cursor.projects_uploads",
+      "tool": "cursor",
+      "family": "workspace",
+      "relative_path": ".cursor/projects/*/uploads/**",
+      "path_kind": "glob",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.docs.artifact_collection"
+      ],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "cursor.projects_assets",
+      "tool": "cursor",
+      "family": "workspace",
+      "relative_path": ".cursor/projects/*/assets/**",
+      "path_kind": "glob",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.docs.artifact_collection"
+      ],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "cursor.ide_windows_state_vscdb",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "AppData/Roaming/Cursor/User/globalStorage/state.vscdb",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_windows_state_vscdb_wal",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "AppData/Roaming/Cursor/User/globalStorage/state.vscdb-wal",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_windows_state_vscdb_shm",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "AppData/Roaming/Cursor/User/globalStorage/state.vscdb-shm",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_windows_state_vscdb_backup",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "AppData/Roaming/Cursor/User/globalStorage/state.vscdb.backup",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_windows_state_vscdb_backup_wal",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "AppData/Roaming/Cursor/User/globalStorage/state.vscdb.backup-wal",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_windows_state_vscdb_backup_shm",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "AppData/Roaming/Cursor/User/globalStorage/state.vscdb.backup-shm",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_windows_conversation_search_db",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "AppData/Roaming/Cursor/User/globalStorage/conversation-search.db",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_windows_conversation_search_db_wal",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "AppData/Roaming/Cursor/User/globalStorage/conversation-search.db-wal",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_windows_conversation_search_db_shm",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "AppData/Roaming/Cursor/User/globalStorage/conversation-search.db-shm",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.workspace_windows_state_vscdb",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "AppData/Roaming/Cursor/User/workspaceStorage/*/state.vscdb",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.cursor_inventory"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "cursor.workspace_windows_state_vscdb_wal",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "AppData/Roaming/Cursor/User/workspaceStorage/*/state.vscdb-wal",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.cursor_inventory"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "cursor.workspace_windows_state_vscdb_shm",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "AppData/Roaming/Cursor/User/workspaceStorage/*/state.vscdb-shm",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.cursor_inventory"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "cursor.workspace_windows_state_vscdb_backup",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "AppData/Roaming/Cursor/User/workspaceStorage/*/state.vscdb.backup",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.cursor_inventory"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "cursor.workspace_windows_state_vscdb_backup_wal",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "AppData/Roaming/Cursor/User/workspaceStorage/*/state.vscdb.backup-wal",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.cursor_inventory"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "cursor.workspace_windows_state_vscdb_backup_shm",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "AppData/Roaming/Cursor/User/workspaceStorage/*/state.vscdb.backup-shm",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.cursor_inventory"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "cursor.ide_darwin_state_vscdb",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "Library/Application Support/Cursor/User/globalStorage/state.vscdb",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_darwin_state_vscdb_wal",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "Library/Application Support/Cursor/User/globalStorage/state.vscdb-wal",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_darwin_state_vscdb_shm",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "Library/Application Support/Cursor/User/globalStorage/state.vscdb-shm",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_darwin_state_vscdb_backup",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "Library/Application Support/Cursor/User/globalStorage/state.vscdb.backup",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_darwin_state_vscdb_backup_wal",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "Library/Application Support/Cursor/User/globalStorage/state.vscdb.backup-wal",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_darwin_state_vscdb_backup_shm",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "Library/Application Support/Cursor/User/globalStorage/state.vscdb.backup-shm",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_darwin_conversation_search_db",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "Library/Application Support/Cursor/User/globalStorage/conversation-search.db",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_darwin_conversation_search_db_wal",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "Library/Application Support/Cursor/User/globalStorage/conversation-search.db-wal",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_darwin_conversation_search_db_shm",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "Library/Application Support/Cursor/User/globalStorage/conversation-search.db-shm",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.workspace_darwin_state_vscdb",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "Library/Application Support/Cursor/User/workspaceStorage/*/state.vscdb",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.cursor_inventory"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "cursor.workspace_darwin_state_vscdb_wal",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "Library/Application Support/Cursor/User/workspaceStorage/*/state.vscdb-wal",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.cursor_inventory"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "cursor.workspace_darwin_state_vscdb_shm",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "Library/Application Support/Cursor/User/workspaceStorage/*/state.vscdb-shm",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.cursor_inventory"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "cursor.workspace_darwin_state_vscdb_backup",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "Library/Application Support/Cursor/User/workspaceStorage/*/state.vscdb.backup",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.cursor_inventory"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "cursor.workspace_darwin_state_vscdb_backup_wal",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "Library/Application Support/Cursor/User/workspaceStorage/*/state.vscdb.backup-wal",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.cursor_inventory"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "cursor.workspace_darwin_state_vscdb_backup_shm",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "Library/Application Support/Cursor/User/workspaceStorage/*/state.vscdb.backup-shm",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.cursor_inventory"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "cursor.ide_linux_state_vscdb",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": ".config/Cursor/User/globalStorage/state.vscdb",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_linux_state_vscdb_wal",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": ".config/Cursor/User/globalStorage/state.vscdb-wal",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_linux_state_vscdb_shm",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": ".config/Cursor/User/globalStorage/state.vscdb-shm",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_linux_state_vscdb_backup",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": ".config/Cursor/User/globalStorage/state.vscdb.backup",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_linux_state_vscdb_backup_wal",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": ".config/Cursor/User/globalStorage/state.vscdb.backup-wal",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_linux_state_vscdb_backup_shm",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": ".config/Cursor/User/globalStorage/state.vscdb.backup-shm",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_linux_conversation_search_db",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": ".config/Cursor/User/globalStorage/conversation-search.db",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_linux_conversation_search_db_wal",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": ".config/Cursor/User/globalStorage/conversation-search.db-wal",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_linux_conversation_search_db_shm",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": ".config/Cursor/User/globalStorage/conversation-search.db-shm",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.workspace_linux_state_vscdb",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": ".config/Cursor/User/workspaceStorage/*/state.vscdb",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.cursor_inventory"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "cursor.workspace_linux_state_vscdb_wal",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": ".config/Cursor/User/workspaceStorage/*/state.vscdb-wal",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.cursor_inventory"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "cursor.workspace_linux_state_vscdb_shm",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": ".config/Cursor/User/workspaceStorage/*/state.vscdb-shm",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.cursor_inventory"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "cursor.workspace_linux_state_vscdb_backup",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": ".config/Cursor/User/workspaceStorage/*/state.vscdb.backup",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.cursor_inventory"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "cursor.workspace_linux_state_vscdb_backup_wal",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": ".config/Cursor/User/workspaceStorage/*/state.vscdb.backup-wal",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.cursor_inventory"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "cursor.workspace_linux_state_vscdb_backup_shm",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": ".config/Cursor/User/workspaceStorage/*/state.vscdb.backup-shm",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.cursor_inventory"
+      ],
+      "assessment_coverage": "recursively_discovered"
+    },
+    {
+      "id": "cursor.ide_windows_root",
+      "tool": "cursor",
+      "family": "root",
+      "relative_path": "AppData/Roaming/Cursor",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_windows_globalStorage",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "AppData/Roaming/Cursor/User/globalStorage",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_windows_workspaceStorage",
+      "tool": "cursor",
+      "family": "workspace",
+      "relative_path": "AppData/Roaming/Cursor/User/workspaceStorage",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_darwin_root",
+      "tool": "cursor",
+      "family": "root",
+      "relative_path": "Library/Application Support/Cursor",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_darwin_globalStorage",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": "Library/Application Support/Cursor/User/globalStorage",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_darwin_workspaceStorage",
+      "tool": "cursor",
+      "family": "workspace",
+      "relative_path": "Library/Application Support/Cursor/User/workspaceStorage",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_linux_root",
+      "tool": "cursor",
+      "family": "root",
+      "relative_path": ".config/Cursor",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_linux_globalStorage",
+      "tool": "cursor",
+      "family": "sessions",
+      "relative_path": ".config/Cursor/User/globalStorage",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "cursor.ide_linux_workspaceStorage",
+      "tool": "cursor",
+      "family": "workspace",
+      "relative_path": ".config/Cursor/User/workspaceStorage",
+      "path_kind": "directory",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "antigravity_cli.summary_proto",
+      "tool": "antigravity_cli",
+      "family": "sessions",
+      "relative_path": ".gemini/antigravity-cli/jetbox_summaries_proto.pb",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.analyze.run_session_detail"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "antigravity_cli.conversation_metadata",
+      "tool": "antigravity_cli",
+      "family": "sessions",
+      "relative_path": ".gemini/antigravity-cli/cache/conversation_metadata.json",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS",
+        "blacklight.analyze.run_session_detail"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "antigravity_cli.annotations",
+      "tool": "antigravity_cli",
+      "family": "sessions",
+      "relative_path": ".gemini/antigravity-cli/annotations",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "antigravity_cli.crashes",
+      "tool": "antigravity_cli",
+      "family": "logs",
+      "relative_path": ".gemini/antigravity-cli/crashes",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "antigravity_cli.persistent_terminals",
+      "tool": "antigravity_cli",
+      "family": "workspace",
+      "relative_path": ".gemini/antigravity-cli/persistent_terminals",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "antigravity_cli.presence",
+      "tool": "antigravity_cli",
+      "family": "workspace",
+      "relative_path": ".gemini/antigravity-cli/presence",
+      "path_kind": "directory",
+      "priority": "medium",
+      "confirmed_by": [],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "antigravity_cli.summary_wal",
+      "tool": "antigravity_cli",
+      "family": "sessions",
+      "relative_path": ".gemini/antigravity-cli/conversation_summaries.db-wal",
+      "path_kind": "file",
+      "priority": "high",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "antigravity_cli.summary_shm",
+      "tool": "antigravity_cli",
+      "family": "sessions",
+      "relative_path": ".gemini/antigravity-cli/conversation_summaries.db-shm",
+      "path_kind": "file",
+      "priority": "medium",
+      "confirmed_by": [
+        "blacklight.scout.PATH_TARGETS"
+      ],
+      "assessment_coverage": "explicitly_assessed"
+    },
+    {
+      "id": "antigravity_cli.conversation_wal",
+      "tool": "antigravity_cli",
+      "family": "sessions",
+      "relative_path": ".gemini/antigravity-cli/conversations/*.db-wal",
+      "path_kind": "glob",
+      "priority": "high",
+      "confirmed_by": [],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "antigravity_cli.conversation_shm",
+      "tool": "antigravity_cli",
+      "family": "sessions",
+      "relative_path": ".gemini/antigravity-cli/conversations/*.db-shm",
+      "path_kind": "glob",
+      "priority": "medium",
+      "confirmed_by": [],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "antigravity_cli.marketplaces",
+      "tool": "antigravity_cli",
+      "family": "cache",
+      "relative_path": ".gemini/antigravity-cli/cache/marketplaces",
+      "path_kind": "directory",
+      "priority": "low",
+      "confirmed_by": [],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "antigravity_cli.bin",
+      "tool": "antigravity_cli",
+      "family": "root",
+      "relative_path": ".gemini/antigravity-cli/bin",
+      "path_kind": "directory",
+      "priority": "low",
+      "confirmed_by": [],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "antigravity_cli.cli_log",
+      "tool": "antigravity_cli",
+      "family": "logs",
+      "relative_path": ".gemini/antigravity-cli/cli.log",
+      "path_kind": "file",
+      "priority": "low",
+      "confirmed_by": [],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "antigravity_cli.knowledge",
+      "tool": "antigravity_cli",
+      "family": "workspace",
+      "relative_path": ".gemini/antigravity-cli/knowledge",
+      "path_kind": "directory",
+      "priority": "low",
+      "confirmed_by": [],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "antigravity_cli.last_check",
+      "tool": "antigravity_cli",
+      "family": "cache",
+      "relative_path": ".gemini/antigravity-cli/last_check.timestamp",
+      "path_kind": "file",
+      "priority": "low",
+      "confirmed_by": [],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "antigravity_cli.scratch",
+      "tool": "antigravity_cli",
+      "family": "workspace",
+      "relative_path": ".gemini/antigravity-cli/scratch",
+      "path_kind": "directory",
+      "priority": "low",
+      "confirmed_by": [],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "antigravity_cli.updater",
+      "tool": "antigravity_cli",
+      "family": "cache",
+      "relative_path": ".gemini/antigravity-cli/updater",
+      "path_kind": "directory",
+      "priority": "low",
+      "confirmed_by": [],
+      "assessment_coverage": "intentionally_deferred"
+    },
+    {
+      "id": "antigravity_cli.builtin",
+      "tool": "antigravity_cli",
+      "family": "root",
+      "relative_path": ".gemini/antigravity-cli/builtin",
+      "path_kind": "directory",
+      "priority": "low",
+      "confirmed_by": [],
+      "assessment_coverage": "intentionally_deferred"
     }
   ]
 }

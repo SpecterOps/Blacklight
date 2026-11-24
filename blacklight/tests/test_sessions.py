@@ -12,12 +12,19 @@ from unittest.mock import patch
 import zstandard
 
 import blacklight.analyze as analyze_module
-import hashlib
 
-from blacklight.analyze import INDICATOR_RULES, _collect_grok_sessions, _collect_sessions, run_session_detail
+from blacklight.analyze import _collect_grok_sessions, _collect_sessions, run_session_detail
 from blacklight.cli import main as cli_main
-from blacklight.session_input import discover_local_session_inputs, discover_session_inputs
+from blacklight.session_input import _local_candidate_paths, discover_local_session_inputs, discover_session_inputs
 from blacklight.sessions import run_sessions_analysis, session_summary_lines
+
+
+def session_detail_rows(path: Path) -> list[dict]:
+    discovery = discover_session_inputs(path)
+    result = run_session_detail(run_id="DETAIL", session_sources=discovery.sources, input_root=path)
+    return [row for tool in result["tools"] for finding in tool["findings"]
+            if finding["finding_type"] == "session_volume_structure"
+            for row in finding["value"]["sessions"]]
 
 
 class SessionInputTests(unittest.TestCase):
@@ -27,6 +34,19 @@ class SessionInputTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
+
+    def test_local_codex_candidates_exclude_inventory_databases(self) -> None:
+        codex = self.root / ".codex"
+        for name in ("thread_history_1.sqlite", "logs_2.sqlite", "sqlite/codex.db"):
+            path = codex / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.touch()
+        rollout = codex / "sessions" / "rollout-test.jsonl"
+        rollout.parent.mkdir(parents=True)
+        rollout.touch()
+        _, candidates = _local_candidate_paths(self.root, "Codex")
+        self.assertIn(rollout, candidates)
+        self.assertTrue(all(path.name not in {"thread_history_1.sqlite", "logs_2.sqlite", "codex.db"} for path in candidates))
 
     @staticmethod
     def _write_jsonl(path: Path, records: list[dict[str, object]], *, malformed: bool = False) -> None:
@@ -114,10 +134,10 @@ class SessionInputTests(unittest.TestCase):
         detail_rows, _, _ = _collect_sessions("Codex", [rollout])
         self.assertEqual(detail_rows[0]["tool_event_count"], 2)
         report = json.loads(Path(result["reports"]["session_report"]["json"]).read_text(encoding="utf-8"))
-        detail = report["sessions"][0]["high_value_detail"]
-        self.assertEqual(detail["request_fragment_count"], 1)
-        self.assertEqual(detail["response_fragment_count"], 1)
-        self.assertEqual(detail["tool_event_fragment_count"], 1)
+        detail = detail_rows[0]
+        self.assertEqual(detail["request_message_count"], 1)
+        self.assertEqual(detail["response_message_count"], 1)
+        self.assertEqual(detail["tool_event_count"], 2)
 
     def test_zstd_codex_explicit_input_matches_jsonl_and_preserves_source_metadata(self) -> None:
         records = [
@@ -430,11 +450,11 @@ class SessionInputTests(unittest.TestCase):
         targets = report["scan_targets"]
         self.assertEqual(targets[0]["path"], str(codex.resolve()))
         self.assertEqual(targets[0]["parse_status"], "parsed_partial")
-        self.assertIn("credential-like indicators", targets[0]["reasons"])
+        self.assertNotIn("credential-like indicators", targets[0]["reasons"])
 
         session_row = report["sessions"][0]
-        self.assertIn("credential_secret", session_row["indicator_categories"])
-        self.assertIsNotNone(session_row["high_value_detail"])
+        self.assertNotIn("indicator_categories", session_row)
+        self.assertNotIn("high_value_detail", session_row)
 
         with redirect_stdout(io.StringIO()) as output:
             rc = cli_main(["sessions", str(self.root), "--run-id", "RUN-CLI"])
@@ -660,11 +680,11 @@ class SessionInputTests(unittest.TestCase):
         self.assertEqual(session["project_worktree_path"], "D:/lab/widget")
         self.assertEqual(session["request_count"], 1)
         self.assertEqual(session["response_count"], 1)
-        detail = session["high_value_detail"]
-        self.assertEqual(detail["request_fragment_count"], 1)
-        self.assertEqual(detail["response_fragment_count"], 1)
-        self.assertEqual(detail["tool_event_fragment_count"], 2)
-        self.assertEqual(detail["machine_context_fragment_count"], 1)
+        detail = session_detail_rows(folder)[0]
+        self.assertEqual(detail["request_message_count"], 1)
+        self.assertEqual(detail["response_message_count"], 1)
+        self.assertEqual(detail["tool_event_count"], 2)
+        self.assertEqual(detail["machine_context_count"], 1)
         rows, _, _ = _collect_grok_sessions(
             [
                 folder / "updates.jsonl",
@@ -713,8 +733,9 @@ class SessionInputTests(unittest.TestCase):
         by_id = {row["session_id"]: row for row in result["top_sessions"]}
         self.assertEqual(by_id["session-chat"]["request_count"], 1)
         self.assertEqual(by_id["session-chat"]["response_count"], 1)
-        self.assertEqual(by_id["session-chat"]["high_value_detail"]["tool_event_fragment_count"], 2)
-        self.assertEqual(by_id["session-chat"]["high_value_detail"]["machine_context_fragment_count"], 1)
+        detail_by_id = {row["session_id"]: row for row in session_detail_rows(self.root)}
+        self.assertEqual(detail_by_id["session-chat"]["tool_event_count"], 2)
+        self.assertEqual(detail_by_id["session-chat"]["machine_context_count"], 1)
         self.assertIsNone(by_id["session-chat"]["session_title"])
         self.assertEqual(by_id["session-prompt"]["request_count"], 2)
         self.assertEqual(by_id["session-prompt"]["response_count"], 0)
@@ -814,11 +835,12 @@ class SessionInputTests(unittest.TestCase):
         self.assertEqual(row["assistant_message_chunk_count"], 4)
         self.assertEqual(row["captured_request_bytes"], len("hello".encode()) + len("unfinished".encode()))
         self.assertEqual(row["captured_response_bytes"], len("first message".encode()) + len("second message".encode()))
-        self.assertEqual(row["high_value_detail"]["response_fragment_count"], 2)
-        self.assertEqual(row["high_value_detail"]["request_fragment_count"], 2)
-        self.assertEqual(row["high_value_detail"]["source_file_count"], 3)
+        detail = session_detail_rows(folder)[0]
+        self.assertEqual(detail["response_message_count"], 2)
+        self.assertEqual(detail["request_message_count"], 2)
+        self.assertEqual(detail["source_file_count"], 3)
 
-    def test_grok_report_stores_indicator_hashes_without_raw_values(self) -> None:
+    def test_grok_report_omits_indicators_and_raw_values(self) -> None:
         secret = "token=ABCD1234SECRETVALUE"
         grok_path = "/Users/analyst/.grok/sessions/lab"
         session_id = "session-secret"
@@ -866,29 +888,13 @@ class SessionInputTests(unittest.TestCase):
         report = json.loads(report_path.read_text(encoding="utf-8"))
         session = report["sessions"][0]
         self.assertEqual(session["tool"], "grok")
-        indicators = session["high_value_detail"]["indicators"]
-        categories = {item["category"] for item in indicators}
-        self.assertIn("credential_secret", categories)
-        self.assertIn("agent_filesystem", categories)
-        for indicator in indicators:
-            self.assertIn(indicator["severity_bucket"], {"critical", "high", "medium", "low"})
-            self.assertGreater(indicator["match_count"], 0)
-            self.assertEqual(len(indicator["matched_value_sha256"]), 64)
-            self.assertNotIn("matched_value", indicator)
+        self.assertNotIn("high_value_detail", session)
+        self.assertNotIn("indicator_categories", session)
+        self.assertFalse(report["content_policy"]["sensitivity_scoring_included"])
+        self.assertFalse(any("indicator" in key or "high_value" in key for key in report["summary"]))
         self.assertNotIn(secret, report_text)
         self.assertNotIn(grok_path, report_text)
         self.assertNotIn("ABCD1234SECRETVALUE", report_text)
-        secret_rule = next(rule for rule in INDICATOR_RULES if rule.rule_id == "credential.assignment")
-        secret_match = secret_rule.pattern.search(f"please use {secret} now")
-        self.assertIsNotNone(secret_match)
-        secret_digest = hashlib.sha256(secret_match.group(0).strip().encode("utf-8")).hexdigest()
-        path_rule = next(rule for rule in INDICATOR_RULES if rule.rule_id == "agent_fs.posix_agent_root")
-        path_match = path_rule.pattern.search(f"opened {grok_path} for review")
-        self.assertIsNotNone(path_match)
-        canonical_path = path_match.group(0).strip().strip(".,;:)]}").lower()
-        path_digest = hashlib.sha256(canonical_path.encode("utf-8")).hexdigest()
-        self.assertIn(secret_digest, report_text)
-        self.assertIn(path_digest, report_text)
 
     def test_explicit_grok_root_enumerates_chat_artifacts_only(self) -> None:
         session_id = "session-alpha"

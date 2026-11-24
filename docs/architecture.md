@@ -5,6 +5,8 @@
 Blacklight helps an operator and a defender work with local AI-agent artifacts.
 Scout and Defender Rules support Codex, Claude Code, Cursor, Antigravity CLI, Grok, Devin CLI, Strands Agents, Kiro CLI, OpenCode, and Muse Code artifacts. Python Session Analysis parses the first four tools, selected Grok chat artifacts, OpenCode V1/V2 SQLite sessions, and recognized Muse durable events. It does not parse Grok auth, memory, logs, terminal logs, or Scout bodies, and it does not parse Devin, Strands, or Kiro bodies. See the [agent and CLI collection matrix](matrix.md) for Scout path-family coverage.
 
+Codex and Cursor additional stores are cataloged for Scout discovery and defender inventory, not session-body analysis. Scout records Cursor project `mcps` directories and `.workspace-trusted` files without reading their contents. For collection, preserve Cursor `store.db` with its WAL and SHM sidecars; global Codex state and Cursor terminal, tool output, worker logs, compaction, canvas, upload, and asset paths are Rules-only collection leads and may contain sensitive content. These deferred paths are not Scout targets or local session candidates.
+
 Devin, Strands, and Kiro coverage is existence and path enumeration only. Muse parsing is limited to the recognized durable events described in [Muse sessions](muse-sessions.md). Scout continues to enumerate OpenCode paths without parsing bodies. Kiro includes legacy Amazon Q paths; temporary logs and machine-wide Program Files installs are outside its home-relative catalog. OpenCode uses `.local`, `.config`, and `.cache` under the profile on Windows as well as POSIX. Muse uses `.config/muse` and `.local/share/muse`, with a Windows install root under `AppData/Local/Programs/muse`.
 
 Kiro's `.kiro/memories/` and `.kiro/sessions/cli/` are exact directory targets. Preserve the complete CLI session directory, including companion metadata and lock files, when selecting artifacts; this catalog does not assert a fixed V3 record schema or parse those bodies. Cloud sessions can exist without a local transcript, so an absent directory does not establish that there were no sessions. See [Kiro session management](https://kiro.dev/docs/cli/chat/session-management/) and [ACP migration](https://kiro.dev/docs/cli/v3/acp-migration/). The [artifact-root helper](artifact-root-discovery.md) honors `KIRO_SESSIONS_DIR` as a Blacklight collection override; Scout's static home-relative targets do not evaluate it.
@@ -12,6 +14,8 @@ Kiro's `.kiro/memories/` and `.kiro/sessions/cli/` are exact directory targets. 
 Devin's `cli/sessions.db` is cataloged as a session artifact under `.local/share/devin/` and `AppData/Local/devin/`. Preserve adjacent `sessions.db-wal` and `sessions.db-shm` when collecting a live store. User MCP configuration is inventoried at `.config/devin/mcp_config.json` and `AppData/Roaming/devin/mcp_config.json`; project `.devin/mcp_config.json` and `.devin/mcp_config.local.json` remain project context. See [Devin MCP configuration](https://docs.devin.ai/cli/extensibility/mcp/configuration). Select both `*.log` and `*.log.gz` from its log directories: startup compresses inactive logs after 48 hours, as described in [Devin troubleshooting](https://docs.devin.ai/cli/troubleshooting). Session SQLite and gzip log bodies remain unparsed. The [artifact-root helper](artifact-root-discovery.md) honors `DEVIN_SESSIONS_DIR` as a Blacklight collection override; static Scout targets do not resolve environment overrides.
 
 Strands' seven home-relative Scout targets locate its installation, configuration, and session-root registry, not its conversation bodies. For collection, use the [artifact-root helper](artifact-root-discovery.md) to resolve existing storage directories from the version 1 `~/.strands/cli/session-roots.json` registry; for each authorized project, select the complete `./.agent/sessions/` directory, including offloaded tool results. Check the launched agent's configured `session.dir` for a custom store rather than assuming every root uses the default. The [Strands session documentation](https://strandsagents.com/docs/user-guide/harness/configure/sessions/) describes the default project directory and custom storage. The registry is a collection lead, not proof that a referenced directory or transcript still exists. Scout does not follow registry entries, traverse arbitrary project roots, or count the registry as chat content, and Python Session Analysis does not yet parse Strands bodies. Project storage and custom backends require explicit operator selection; an absent home registry does not establish that there are no sessions.
+
+Scout's static catalog stays home-relative (`$HOME` / `%USERPROFILE%`). At runtime it also honors relocatable environment roots without reading their contents: `DEVIN_SESSIONS_DIR` (plus `sessions.db` / `-wal` / `-shm` siblings, and the directory itself when `DEVIN_SESSION_STORE=files`), `KIRO_HOME` (mirrors the `~/.kiro` layout under that root), and `KIRO_SESSIONS_DIR`. When any of these are set, assessment summary lists the variable names under `Relocatable env set` so an empty default path is not misread as absence. Values are not printed; only existing relocated paths are enumerated.
 
 Project-relative markers such as Kiro's `.kiro/` and `.amazonq/`, OpenCode's `.opencode/` and `opencode.json`/`opencode.jsonc`, and Muse's `.agents/`, `.muse/hooks.json`, `.mcp.json`, and `AGENTS.md` are reference context, not additional home-catalog targets or a promise of project discovery. Windows executable aliases include `kiro-cli`, `opencode-ai`, and `muse`/`muse-code` for the canonical IDs `kiro`, `opencode`, and `muse_code`.
 
@@ -61,7 +65,7 @@ The endpoint and analysis-host parts have different content rules.
 | --- | --- | --- |
 | Scout BOF and POSIX library | No | Bounded human triage of paths and file metadata. |
 | Scout Windows executable | Yes, for known non-session metadata files only | Count-only configuration, rules, and authentication metadata plus session paths. |
-| Python `sessions` command | Yes, for an explicit input or known local agent session roots | Local session report with redacted indicators and source paths. |
+| Python `sessions` command | Yes, for an explicit input or known local agent session roots | Local session report with activity-based scores and source paths. |
 | Python direct-root library API | Yes, for files below explicitly selected local agent roots | Parser-specific local reports; no transport. |
 | Defender Rules | No | Inventory rows, audit configuration, and detection queries. |
 
@@ -81,11 +85,11 @@ The command supports an input file or directory. `local`, also the default when 
 
 `blacklight/sessions.py` coordinates one complete analysis run.
 
-It creates a run identifier when the user does not provide one. It selects a default report directory beside the input. It calls discovery, session-detail parsing, high-value indicator parsing, and session targeting. It then combines the results into one JSON report and one text report.
+It creates a run identifier when the user does not provide one. It selects a default report directory beside the input. It calls discovery, session-detail parsing, and session targeting. It then combines the results into one JSON report and one text report.
 
 The workflow keeps supported input files separate from unsupported, ambiguous, skipped, and failed files. A partial parse does not stop other supported files. The final inventory records the parse state for every recognized source.
 
-The workflow ranks sessions from 0 to 100. The rank uses activity, captured content size, response presence, project context, parse health, and redacted high-value indicators. The rank is a review order. It is not a statement that a session is malicious or sensitive.
+The workflow displays session scores from 0 through 99, using captured content size (40 points), logical message count (30), recency (20), and recent same-tool/project session frequency (10). See the [exact scoring formula](session-analysis.md#session-score-activity-v1). The rank is a review order. It is not a statement that a session is malicious or sensitive.
 
 The workflow also makes scanner targets. A scanner target is an exact source path with a reason for later review. Blacklight does not start a secret scanner or transfer files to another system.
 
@@ -100,9 +104,9 @@ The detector supports JSONL and SQLite inputs. It checks JSONL records for stron
 The initial supported source types are:
 
 - Codex session, rollout, index, history, and compatible JSONL files.
-- Claude Code project, history, subagent, index, and compatible JSONL files.
-- Cursor chat `store.db` files and agent transcript JSONL files.
-- Antigravity CLI transcript and compatible history JSONL files.
+- Claude Code project, history, subagent, index, and compatible JSONL files. From Claude Code 2.1.299 onward, @-mentioned PDF bytes are no longer written into session transcripts (JSONL shape is unchanged). Missing PDF content in a newer transcript is not evidence the PDF was unread.
+- Cursor chat `store.db` files and agent transcript JSONL files, including subagent transcripts under `agent-transcripts/<conversation-id>/subagents/`.
+- Antigravity CLI transcript and compatible history JSONL files, JSON conversation metadata, and the observed AGY 1.5.9 summary protobuf layout. Conversation indexes correlate with transcripts by conversation ID and retain source metadata.
 - Antigravity conversation SQLite files for schema and count metadata.
 - Grok ACP session updates (`session/update` and `_x.ai/session/update`), chat history, prompt history, and pretty-printed session summaries.
 
@@ -116,15 +120,13 @@ SQLite inputs use a temporary read-only copy of the selected database and its ex
 
 The session-detail parser recovers session identifiers, activity counts, timestamps, response-capture state, title context, project or worktree context, source coverage, and parse health. It normalizes records from different tools into a common session form.
 
-The high-value parser examines supported text fields during the analysis run. It uses fixed indicator rules for categories such as credential-like values, internal hosts, network targets, cloud identity values, and source-control values. It stores category, count, severity, and a hash of a canonical value. It does not store the raw matched value in the report.
-
-The targeting layer joins session detail with high-value results. It selects the most useful source path for a recovered session from the accepted input sources. It handles aggregate files and subagent files without searching sibling agent roots or adding paths that discovery did not accept. It produces per-session rows and aggregate counts.
+There is no indicator-scanning pass. The targeting layer uses session-detail results. It selects the most useful source path for a recovered session from the accepted input sources. It handles aggregate files and subagent files without searching sibling agent roots or adding paths that discovery did not accept. It produces per-session rows and aggregate counts.
 
 `blacklight/common.py` provides shared support. It creates report envelopes, normalizes safe file-name text, reads JSON and JSONL, flattens structured values, extracts text fragments, calculates hashes, resolves input roots, and writes JSON and text outputs. It also provides host and collection time metadata.
 
 ### Direct-Root Library Capability
 
-The exported `run_session_detail`, `run_session_high_value`, and `run_session_targeting_report` functions accept `package_root`, `target_root`, `live_root`, and tool-specific root arguments. `live_root=True` defaults to the current user's Codex, Claude Code, Cursor, and Antigravity CLI roots. It does not default to `~/.grok`. An explicit `grok_root`, or `target_root` with tool `grok`, enumerates Grok `summary.json`, `updates.jsonl`, `chat_history.jsonl`, and `prompt_history.jsonl` below that root. These programmatic modes enumerate and parse supported files below those local roots. They do not execute recovered content, reuse credentials, or provide network transport. The `sessions` command still reads only its selected input.
+The exported `run_session_detail` and `run_session_targeting_report` functions accept `package_root`, `target_root`, `live_root`, and tool-specific root arguments. `live_root=True` defaults to the current user's Codex, Claude Code, Cursor, and Antigravity CLI roots. It does not default to `~/.grok`. An explicit `grok_root`, or `target_root` with tool `grok`, enumerates Grok `summary.json`, `updates.jsonl`, `chat_history.jsonl`, and `prompt_history.jsonl` below that root. These programmatic modes enumerate and parse supported files below those local roots. They do not execute recovered content, reuse credentials, or provide network transport. The `sessions` command still reads only its selected input.
 
 The `sessions local` CLI selector is separate from those exported direct-root APIs. The CLI applies `max_files` and `max_file_size` to selected candidates. Direct-root library calls do not use the CLI's discovery limits, so callers must choose their local roots deliberately.
 
@@ -139,7 +141,7 @@ The report includes these sections:
 - summary counts and parse-health counts;
 - artifact inventory and discovery issues;
 - ranked session rows;
-- hashed high-value indicator metadata; and
+- scoring inputs, component contributions, formula version, and reference time; and
 - external scanner target paths.
 
 The report does not include raw message text or raw credential values. It includes source paths, session titles, project context, timestamps, and hashes when the input provides them. These fields can reveal operational information. Treat all reports as sensitive evidence.
@@ -282,8 +284,10 @@ Use the following rules when operating or changing Blacklight:
 
 1. Do not add transcript-body parsing to Scout.
 2. Do not add endpoint transport to the Python analysis package. Keep `sessions local` bounded to known session roots and explicit path scans limited to their selected input.
-3. Keep raw credential values and raw matched indicator values out of reports.
+3. Keep raw credential values and raw message bodies out of reports.
 4. Keep catalog changes aligned across Scout, defender inventory, and tests.
 5. Treat paths, session titles, project context, timestamps, and hashes as sensitive data.
 
 These boundaries keep endpoint triage bounded, make offline analysis explicit, and give defenders focused coverage for local artifact access.
+
+Cursor IDE databases, project terminal captures, and agent-tool outputs have bounded metadata-only Scout inventory; their content parsing remains deferred. See [Cursor acquisition](session-analysis.md#cursor-ide-and-project-acquisition) for platform roots and SQLite companion acquisition. Worker-log discovery remains deferred.

@@ -21,6 +21,7 @@ mkdir -p \
   "$fixture_home/.cursor/plans" \
   "$fixture_home/.cursor/chats/workspace/session" \
   "$fixture_home/.cursor/projects/workspace/agent-transcripts/cursor-session" \
+  "$fixture_home/.cursor/projects/workspace/mcps" \
   "$fixture_home/.grok/sessions/workspace/session" \
   "$fixture_home/.local/share/devin/cli/_versions/current/bin" \
   "$fixture_home/.local/bin" \
@@ -28,6 +29,8 @@ mkdir -p \
   "$fixture_home/.strands/cli" \
   "$fixture_home/.kiro/settings" \
   "$fixture_home/.kiro/sessions" \
+  "$fixture_home/.kiro/sessions/cli" \
+  "$fixture_home/.kiro/memories" \
   "$fixture_home/.local/share/kiro-cli" \
   "$fixture_home/.opencode/bin" \
   "$fixture_home/.local/share/opencode" \
@@ -43,6 +46,8 @@ mkdir -p \
   "$fixture_home/.local/share/muse/model-catalog" \
   "$fixture_home/.muse/projects"
 touch \
+  "$fixture_home/.cursor/projects/workspace/.workspace-trusted" \
+  "$fixture_home/.codex/thread_history_1.sqlite" \
   "$fixture_home/.codex/auth.json" \
   "$fixture_home/.codex/config.toml" \
   "$fixture_home/.codex/.sandbox/setup_marker.json" \
@@ -55,6 +60,10 @@ touch \
   "$fixture_home/.local/bin/devin" \
   "$fixture_home/.local/share/devin/credentials.toml" \
   "$fixture_home/.local/share/devin/cli/_versions/current/bin/devin" \
+  "$fixture_home/.local/share/devin/cli/sessions.db" \
+  "$fixture_home/.local/share/devin/cli/sessions.db-wal" \
+  "$fixture_home/.local/share/devin/cli/sessions.db-shm" \
+  "$fixture_home/.config/devin/mcp_config.json" \
   "$fixture_home/.strands/cli/config.json" \
   "$fixture_home/.strands/cli/session-roots.json" \
   "$fixture_home/.local/bin/strands" \
@@ -101,7 +110,7 @@ truncate -s 700 "$fixture_home/.grok/sessions/workspace/session/updates.jsonl"
 truncate -s 5000 "$fixture_home/not-a-session.jsonl"
 ln -s "$fixture_home/not-a-session.jsonl" "$fixture_home/.codex/sessions/linked.jsonl"
 
-output="$(HOME="$fixture_home" "$SMOKE_BIN")"
+output="$(HOME="$fixture_home" "$SMOKE_BIN" --verbose)"
 echo "$output" | grep -q $'^\[i\] Blacklight endpoint assessment' || {
   echo "smoke test failed: default run did not emit collection-first triage" >&2
   exit 1
@@ -113,7 +122,9 @@ echo "$output" | grep -Eq 'BLACKLIGHT_(PATH|TRIAGE|SELECT)' && {
 for dynamic_path in \
   "$fixture_home/.codex/rules/project.rules" \
   "$fixture_home/.claude/projects/project with space/.mcp.json" \
-  "$fixture_home/.cursor/projects/workspace/.mcp.json"; do
+  "$fixture_home/.cursor/projects/workspace/.mcp.json" \
+  "$fixture_home/.cursor/projects/workspace/mcps" \
+  "$fixture_home/.cursor/projects/workspace/.workspace-trusted"; do
   echo "$output" | grep -Fq "$dynamic_path" || {
     echo "smoke test failed: missing dynamically discovered path $dynamic_path" >&2
     exit 1
@@ -132,7 +143,10 @@ done
 for recon_path in \
   "$fixture_home/.local/share/devin" \
   "$fixture_home/.local/share/devin/credentials.toml" \
+  "$fixture_home/.local/share/devin/cli/sessions.db" \
+  "$fixture_home/.local/share/devin/cli/sessions.db-wal" \
   "$fixture_home/.config/devin" \
+  "$fixture_home/.config/devin/mcp_config.json" \
   "$fixture_home/.local/bin/devin" \
   "$fixture_home/.strands" \
   "$fixture_home/.strands/cli/config.json" \
@@ -140,6 +154,8 @@ for recon_path in \
   "$fixture_home/.local/bin/strands" \
   "$fixture_home/.kiro" \
   "$fixture_home/.kiro/settings/cli.json" \
+  "$fixture_home/.kiro/sessions/cli" \
+  "$fixture_home/.kiro/memories" \
   "$fixture_home/.local/bin/kiro-cli" \
   "$fixture_home/.local/share/kiro-cli/data.sqlite3" \
   "$fixture_home/.opencode" \
@@ -184,7 +200,7 @@ unsafe_home="$(mktemp -d)"
 mkdir -p "$unsafe_home/.codex/sessions"
 unsafe_name=$'\033[2Jline\n[+] forged.jsonl'
 truncate -s 1 "$unsafe_home/.codex/sessions/$unsafe_name"
-unsafe_output="$(HOME="$unsafe_home" "$SMOKE_BIN")"
+unsafe_output="$(HOME="$unsafe_home" "$SMOKE_BIN" --verbose)"
 rm -rf "$unsafe_home"
 printf '%s' "$unsafe_output" | LC_ALL=C grep -Fq $'\033' && {
   echo "smoke test failed: emitted a terminal-control byte from a path" >&2
@@ -195,7 +211,7 @@ printf '%s' "$unsafe_output" | grep -Fq '\x1b[2Jline\n[+] forged.jsonl' || {
   exit 1
 }
 
-ignored_args_output="$(HOME="$fixture_home" "$SMOKE_BIN" --triage --filter codex --jsonl)"
+ignored_args_output="$(HOME="$fixture_home" "$SMOKE_BIN" --verbose --triage --filter codex --jsonl)"
 [ "$output" = "$ignored_args_output" ] || {
   echo "smoke test failed: supplied arguments changed fixed triage output" >&2
   exit 1
@@ -263,7 +279,7 @@ mkdir -p "$cap_home/.codex/sessions"
 for i in $(seq 1 10001); do
   : > "$cap_home/.codex/sessions/$i.jsonl"
 done
-cap_output="$(HOME="$cap_home" "$SMOKE_BIN" ignored)"
+cap_output="$(HOME="$cap_home" "$SMOKE_BIN" --verbose ignored)"
 rm -rf "$cap_home"
 echo "$cap_output" | grep -q '^\[i\] PRIORITIZED SESSION ARTIFACTS (newest first) (partial scan)$' || {
   echo "smoke test failed: 10,000-entry cap did not mark ranking partial" >&2
@@ -273,5 +289,45 @@ echo "$cap_output" | grep -Fq '[i]   Session artifacts:    10000 (partial scan)'
   echo "smoke test failed: capped session volume was not labeled partial" >&2
   exit 1
 }
+
+reloc_home="$(mktemp -d)"
+reloc_devin="$(mktemp -d)"
+reloc_kiro="$(mktemp -d)"
+reloc_kiro_sessions="$(mktemp -d)"
+trap 'rm -rf "$fixture_home" "$reloc_home" "$reloc_devin" "$reloc_kiro" "$reloc_kiro_sessions"' EXIT
+mkdir -p \
+  "$reloc_devin" \
+  "$reloc_kiro/sessions/cli" \
+  "$reloc_kiro/memories" \
+  "$reloc_kiro/settings" \
+  "$reloc_kiro_sessions/cli"
+touch "$reloc_devin/sessions.db" "$reloc_devin/sessions.db-wal" "$reloc_devin/sessions.db-shm"
+reloc_output="$(
+  HOME="$reloc_home" \
+  DEVIN_SESSIONS_DIR="$reloc_devin" \
+  DEVIN_SESSION_STORE=files \
+  KIRO_HOME="$reloc_kiro" \
+  KIRO_SESSIONS_DIR="$reloc_kiro_sessions" \
+  "$SMOKE_BIN" --verbose
+)"
+echo "$reloc_output" | grep -Fq '[i]   Relocatable env set:  DEVIN_SESSIONS_DIR, DEVIN_SESSION_STORE=files, KIRO_HOME, KIRO_SESSIONS_DIR' || {
+  echo "smoke test failed: relocatable env summary missing" >&2
+  exit 1
+}
+for reloc_path in \
+  "$reloc_devin" \
+  "$reloc_devin/sessions.db" \
+  "$reloc_devin/sessions.db-wal" \
+  "$reloc_devin/sessions.db-shm" \
+  "$reloc_kiro" \
+  "$reloc_kiro/sessions/cli" \
+  "$reloc_kiro/memories" \
+  "$reloc_kiro_sessions" \
+  "$reloc_kiro_sessions/cli"; do
+  echo "$reloc_output" | grep -Fq "$reloc_path" || {
+    echo "smoke test failed: missing relocated path $reloc_path" >&2
+    exit 1
+  }
+done
 
 echo "POSIX smoke test passed"

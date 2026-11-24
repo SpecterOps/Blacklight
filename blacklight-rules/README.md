@@ -1,3 +1,5 @@
+<img src="../docs/assets/Blacklight_Vertical_WhiteText.png" alt="Blacklight — Illuminating AI agent artifacts" width="100%">
+
 # Blacklight Rules
 
 Blacklight Rules helps defenders find and monitor local AI-agent artifacts

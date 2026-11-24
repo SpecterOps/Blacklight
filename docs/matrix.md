@@ -13,11 +13,11 @@ Static targets count exact catalog entries, including directories; they are not 
 
 | Agent / CLI ID | Windows targets | macOS targets | Linux targets | Confirmed artifacts |
 | --- | ---: | ---: | ---: | ---: |
-| `antigravity_cli` | 10 | 10 | 10 | 17 |
+| `antigravity_cli` | 17 | 17 | 17 | 35 |
 | `claude_code` | 10 | 10 | 10 | 18 |
-| `codex` | 15 | 16 | 15 | 18 |
-| `cursor` | 16 | 16 | 16 | 23 |
-| `devin` | 23 | 23 | 23 | 25 |
+| `codex` | 46 | 47 | 46 | 51 |
+| `cursor` | 35 | 35 | 35 | 96 |
+| `devin` | 27 | 27 | 27 | 29 |
 | `grok` | 14 | 14 | 14 | 14 |
 | `kiro` | 28 | 28 | 28 | 28 |
 | `muse_code` | 16 | 16 | 16 | 16 |
@@ -32,8 +32,8 @@ A check means at least one Scout target or confirmed artifact is cataloged for t
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `antigravity_cli` | — | Yes | Yes | — | Yes | Yes | Yes | — | — | — | Yes | — | — | Yes | Yes | — | — | Yes | — |
 | `claude_code` | Yes | — | Yes | — | Yes | — | Yes | — | — | Yes | Yes | — | — | Yes | — | — | — | Yes | — |
-| `codex` | Yes | — | Yes | — | Yes | — | — | Yes | — | — | Yes | Yes | Yes | Yes | — | — | — | — | — |
-| `cursor` | — | — | Yes | Yes | Yes | — | Yes | — | Yes | Yes | Yes | — | — | Yes | Yes | Yes | Yes | Yes | Yes |
+| `codex` | Yes | — | Yes | — | Yes | Yes | — | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | — | — | Yes | Yes |
+| `cursor` | — | — | Yes | Yes | Yes | Yes | Yes | — | Yes | Yes | Yes | — | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
 | `devin` | Yes | Yes | Yes | — | — | Yes | Yes | — | — | — | Yes | — | — | Yes | — | — | — | — | — |
 | `grok` | Yes | — | Yes | — | — | Yes | — | — | — | Yes | Yes | — | — | Yes | Yes | — | — | Yes | Yes |
 | `kiro` | Yes | — | Yes | — | Yes | — | Yes | — | — | — | Yes | Yes | — | Yes | Yes | — | — | — | — |
@@ -58,20 +58,38 @@ Evidence abbreviations: **S** = static Scout catalog; **E** = endpoint count-onl
 | `.gemini/antigravity-cli/cache` | cache | directory | Yes | Yes | Yes | explicitly_assessed | S, E |
 | `.gemini/antigravity-cli/cache/default_project_id.txt` | cache | file | — | — | — | intentionally_deferred | E |
 | `.gemini/antigravity-cli/cache/last_conversations.json` | cache | file | — | — | — | intentionally_deferred | E |
+| `.gemini/antigravity-cli/cache/marketplaces` | cache | directory | — | — | — | intentionally_deferred | — |
 | `.gemini/antigravity-cli/cache/onboarding.json` | cache | file | — | — | — | intentionally_deferred | E |
+| `.gemini/antigravity-cli/last_check.timestamp` | cache | file | — | — | — | intentionally_deferred | — |
+| `.gemini/antigravity-cli/updater` | cache | directory | — | — | — | intentionally_deferred | — |
 | `.gemini/antigravity-cli/settings.json` | config | file | Yes | Yes | Yes | explicitly_assessed | S, E |
 | `.gemini/antigravity-cli/history.jsonl` | history | file | Yes | Yes | Yes | explicitly_assessed | S, A |
+| `.gemini/antigravity-cli/cli.log` | logs | file | — | — | — | intentionally_deferred | — |
+| `.gemini/antigravity-cli/crashes` | logs | directory | Yes | Yes | Yes | explicitly_assessed | S |
 | `.gemini/antigravity-cli/log` | logs | directory | Yes | Yes | Yes | explicitly_assessed | S |
 | `.gemini/antigravity-cli/mcp_config.json` | mcp | file | Yes | Yes | Yes | explicitly_assessed | S, E |
 | `.gemini/antigravity-cli` | root | directory | Yes | Yes | Yes | explicitly_assessed | S |
+| `.gemini/antigravity-cli/bin` | root | directory | — | — | — | intentionally_deferred | — |
+| `.gemini/antigravity-cli/builtin` | root | directory | — | — | — | intentionally_deferred | — |
+| `.gemini/antigravity-cli/annotations` | sessions | directory | Yes | Yes | Yes | explicitly_assessed | S |
 | `.gemini/antigravity-cli/brain` | sessions | directory | Yes | Yes | Yes | explicitly_assessed | S, A |
 | `.gemini/antigravity-cli/brain/*/.system_generated/logs/transcript*.jsonl` | sessions | glob | — | — | — | recursively_discovered | A |
+| `.gemini/antigravity-cli/cache/conversation_metadata.json` | sessions | file | Yes | Yes | Yes | explicitly_assessed | S, A |
 | `.gemini/antigravity-cli/conversation_summaries.db` | sessions | file | Yes | Yes | Yes | explicitly_assessed | S, E |
+| `.gemini/antigravity-cli/conversation_summaries.db-shm` | sessions | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `.gemini/antigravity-cli/conversation_summaries.db-wal` | sessions | file | Yes | Yes | Yes | explicitly_assessed | S |
 | `.gemini/antigravity-cli/conversations` | sessions | directory | Yes | Yes | Yes | explicitly_assessed | S, E |
 | `.gemini/antigravity-cli/conversations/*.db` | sessions | glob | — | — | — | recursively_discovered | E |
+| `.gemini/antigravity-cli/conversations/*.db-shm` | sessions | glob | — | — | — | intentionally_deferred | — |
+| `.gemini/antigravity-cli/conversations/*.db-wal` | sessions | glob | — | — | — | intentionally_deferred | — |
+| `.gemini/antigravity-cli/jetbox_summaries_proto.pb` | sessions | file | Yes | Yes | Yes | explicitly_assessed | S, A |
 | `.gemini/antigravity-cli/builtin/skills` | skills | directory | Yes | Yes | Yes | explicitly_assessed | S |
 | `.gemini/antigravity-cli/installation_id` | workspace | file | — | — | — | intentionally_deferred | E |
 | `.gemini/antigravity-cli/jetski_state.pbtxt` | workspace | file | — | — | — | intentionally_deferred | E |
+| `.gemini/antigravity-cli/knowledge` | workspace | directory | — | — | — | intentionally_deferred | — |
+| `.gemini/antigravity-cli/persistent_terminals` | workspace | directory | Yes | Yes | Yes | explicitly_assessed | S |
+| `.gemini/antigravity-cli/presence` | workspace | directory | — | — | — | intentionally_deferred | — |
+| `.gemini/antigravity-cli/scratch` | workspace | directory | — | — | — | intentionally_deferred | — |
 
 ### claude_code
 
@@ -100,17 +118,31 @@ Evidence abbreviations: **S** = static Scout catalog; **E** = endpoint count-onl
 
 | Artifact / path | Family | Kind | Windows | macOS | Linux | Assessment coverage | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| `.codex/.hook-trust` | auth | directory | Yes | Yes | Yes | explicitly_assessed | S |
 | `.codex/.sandbox-secrets/sandbox_users.json` | auth | file | Yes | Yes | Yes | explicitly_assessed | S, E |
 | `.codex/auth.json` | auth | file | Yes | Yes | Yes | explicitly_assessed | S, E |
+| `.codex/app-server-daemon/settings.json` | config | file | Yes | Yes | Yes | explicitly_assessed | S |
 | `.codex/config.toml` | config | file | Yes | Yes | Yes | explicitly_assessed | S, E |
+| `.codex/hooks.json` | config | file | Yes | Yes | Yes | explicitly_assessed | S |
 | `.codex/history.jsonl` | history | file | Yes | Yes | Yes | explicitly_assessed | S, A |
+| `.codex/transcription-history.jsonl` | history | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `.codex/app-server-daemon` | logs | directory | Yes | Yes | Yes | explicitly_assessed | S |
+| `.codex/logs_2.sqlite` | logs | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `.codex/logs_2.sqlite-shm` | logs | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `.codex/logs_2.sqlite-wal` | logs | file | Yes | Yes | Yes | explicitly_assessed | S |
 | `.codex/memories/extensions/skysight` | memories | directory | — | Yes | — | explicitly_assessed | S |
+| `.codex/automations` | plans | directory | Yes | Yes | Yes | explicitly_assessed | S |
+| `.codex/goals_1.sqlite` | plans | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `.codex/plans` | plans | directory | Yes | Yes | Yes | explicitly_assessed | S |
+| `.codex/code-review-plugin/reviews.sqlite` | plugins | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `.codex/plugins` | plugins | directory | Yes | Yes | Yes | explicitly_assessed | S |
 | `.codex` | root | directory | Yes | Yes | Yes | explicitly_assessed | S |
 | `.codex/rules` | rules | directory | Yes | Yes | Yes | explicitly_assessed | S, E |
 | `.codex/rules/*.rules` | rules | glob | — | — | — | recursively_discovered | E |
 | `.codex/rules/default.rules` | rules | file | Yes | Yes | Yes | explicitly_assessed | S, E |
 | `.codex/.sandbox/setup_error.json` | sandbox | file | Yes | Yes | Yes | explicitly_assessed | S, E |
 | `.codex/.sandbox/setup_marker.json` | sandbox | file | Yes | Yes | Yes | explicitly_assessed | S, E |
+| `.codex/computer-use` | sandbox | directory | Yes | Yes | Yes | explicitly_assessed | S |
 | `.codex/archived_sessions` | sessions | directory | Yes | Yes | Yes | explicitly_assessed | S, A |
 | `.codex/session_index.jsonl` | sessions | file | Yes | Yes | Yes | explicitly_assessed | S, A |
 | `.codex/sessions` | sessions | directory | Yes | Yes | Yes | explicitly_assessed | S, A |
@@ -118,33 +150,125 @@ Evidence abbreviations: **S** = static Scout catalog; **E** = endpoint count-onl
 | `.codex/state_5.sqlite-shm` | sessions | file | Yes | Yes | Yes | explicitly_assessed | S |
 | `.codex/state_5.sqlite-wal` | sessions | file | Yes | Yes | Yes | explicitly_assessed | S |
 | `.codex/state_5.sqlite.*` | sessions | glob | — | — | — | recursively_discovered | A |
+| `.codex/thread_history_1.sqlite` | sessions | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `.codex/thread_history_1.sqlite-shm` | sessions | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `.codex/thread_history_1.sqlite-wal` | sessions | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `.codex/skills` | skills | directory | Yes | Yes | Yes | explicitly_assessed | S |
+| `.codex/.codex-global-state.json` | workspace | file | — | — | — | intentionally_deferred | blacklight.docs.artifact_collection |
+| `.codex/.codex-global-state.json.bak` | workspace | file | — | — | — | intentionally_deferred | blacklight.docs.artifact_collection |
+| `.codex/attachments` | workspace | directory | Yes | Yes | Yes | explicitly_assessed | S |
+| `.codex/dictation-history` | workspace | directory | Yes | Yes | Yes | explicitly_assessed | S |
+| `.codex/memories_1.sqlite` | workspace | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `.codex/queue_1.sqlite` | workspace | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `.codex/queue_1.sqlite-shm` | workspace | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `.codex/queue_1.sqlite-wal` | workspace | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `.codex/sqlite/codex-dev.db` | workspace | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `.codex/sqlite/codex-dev.db-shm` | workspace | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `.codex/sqlite/codex-dev.db-wal` | workspace | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `.codex/sqlite/codex.db` | workspace | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `.codex/sqlite/codex.db-shm` | workspace | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `.codex/sqlite/codex.db-wal` | workspace | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `.codex/worktrees` | worktrees | directory | Yes | Yes | Yes | explicitly_assessed | S |
 
 ### cursor
 
 | Artifact / path | Family | Kind | Windows | macOS | Linux | Assessment coverage | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| `.cursor/agent-cli-state.json` | config | file | Yes | Yes | Yes | explicitly_assessed | S |
 | `.cursor/agents` | config | directory | Yes | Yes | Yes | explicitly_assessed | S |
+| `.cursor/argv.json` | config | file | Yes | Yes | Yes | explicitly_assessed | S |
 | `.cursor/cli-config.json` | config | file | Yes | Yes | Yes | explicitly_assessed | S, E |
+| `.cursor/commands` | config | directory | Yes | Yes | Yes | explicitly_assessed | S |
+| `.cursor/hooks.json` | config | file | Yes | Yes | Yes | explicitly_assessed | S |
 | `.cursor/extensions` | extensions | directory | Yes | Yes | Yes | explicitly_assessed | S, E |
 | `.cursor/extensions/extensions.json` | extensions | file | Yes | Yes | Yes | explicitly_assessed | S, E |
 | `.cursor/prompt_history.json` | history | file | Yes | Yes | Yes | explicitly_assessed | S, E |
+| `.cursor/projects/*/worker.log` | logs | glob | — | — | — | intentionally_deferred | blacklight.docs.artifact_collection |
 | `.cursor/mcp.json` | mcp | file | Yes | Yes | Yes | explicitly_assessed | S |
 | `.cursor/projects/**/.mcp.json` | mcp | glob | — | — | — | recursively_discovered | E |
+| `.cursor/projects/*/mcps` | mcp | glob | — | — | — | recursively_discovered | E |
 | `.cursor/plans` | plans | directory | Yes | Yes | Yes | explicitly_assessed | S, E |
 | `.cursor/plans/*.plan.md` | plans | glob | — | — | — | recursively_discovered | E |
 | `.cursor/plugins` | plugins | directory | Yes | Yes | Yes | explicitly_assessed | S |
+| `.config/Cursor` | root | directory | — | — | Yes | explicitly_assessed | S |
 | `.cursor` | root | directory | Yes | Yes | Yes | explicitly_assessed | S |
+| `AppData/Roaming/Cursor` | root | directory | Yes | — | — | explicitly_assessed | S |
+| `Library/Application Support/Cursor` | root | directory | — | Yes | — | explicitly_assessed | S |
+| `.cursor/computer-use-sidecar` | sandbox | directory | Yes | Yes | Yes | explicitly_assessed | S |
+| `.cursor/sandbox-policies` | sandbox | directory | Yes | Yes | Yes | explicitly_assessed | S |
+| `.config/Cursor/User/globalStorage` | sessions | directory | — | — | Yes | explicitly_assessed | S |
+| `.config/Cursor/User/globalStorage/conversation-search.db` | sessions | file | — | — | Yes | explicitly_assessed | S |
+| `.config/Cursor/User/globalStorage/conversation-search.db-shm` | sessions | file | — | — | Yes | explicitly_assessed | S |
+| `.config/Cursor/User/globalStorage/conversation-search.db-wal` | sessions | file | — | — | Yes | explicitly_assessed | S |
+| `.config/Cursor/User/globalStorage/state.vscdb` | sessions | file | — | — | Yes | explicitly_assessed | S |
+| `.config/Cursor/User/globalStorage/state.vscdb-shm` | sessions | file | — | — | Yes | explicitly_assessed | S |
+| `.config/Cursor/User/globalStorage/state.vscdb-wal` | sessions | file | — | — | Yes | explicitly_assessed | S |
+| `.config/Cursor/User/globalStorage/state.vscdb.backup` | sessions | file | — | — | Yes | explicitly_assessed | S |
+| `.config/Cursor/User/globalStorage/state.vscdb.backup-shm` | sessions | file | — | — | Yes | explicitly_assessed | S |
+| `.config/Cursor/User/globalStorage/state.vscdb.backup-wal` | sessions | file | — | — | Yes | explicitly_assessed | S |
+| `.config/Cursor/User/workspaceStorage/*/state.vscdb` | sessions | glob | — | — | — | recursively_discovered | blacklight.scout.cursor_inventory |
+| `.config/Cursor/User/workspaceStorage/*/state.vscdb-shm` | sessions | glob | — | — | — | recursively_discovered | blacklight.scout.cursor_inventory |
+| `.config/Cursor/User/workspaceStorage/*/state.vscdb-wal` | sessions | glob | — | — | — | recursively_discovered | blacklight.scout.cursor_inventory |
+| `.config/Cursor/User/workspaceStorage/*/state.vscdb.backup` | sessions | glob | — | — | — | recursively_discovered | blacklight.scout.cursor_inventory |
+| `.config/Cursor/User/workspaceStorage/*/state.vscdb.backup-shm` | sessions | glob | — | — | — | recursively_discovered | blacklight.scout.cursor_inventory |
+| `.config/Cursor/User/workspaceStorage/*/state.vscdb.backup-wal` | sessions | glob | — | — | — | recursively_discovered | blacklight.scout.cursor_inventory |
 | `.cursor/chats` | sessions | directory | Yes | Yes | Yes | explicitly_assessed | S, A |
 | `.cursor/chats/**/store.db` | sessions | glob | — | — | — | recursively_discovered | A, E |
+| `.cursor/chats/**/store.db-shm` | sessions | glob | — | — | — | recursively_discovered | blacklight.scout.cursor_inventory, blacklight.docs.artifact_collection |
+| `.cursor/chats/**/store.db-wal` | sessions | glob | — | — | — | recursively_discovered | blacklight.scout.cursor_inventory, blacklight.docs.artifact_collection |
+| `.cursor/projects/*/agent-transcripts/**/compaction/**` | sessions | glob | — | — | — | intentionally_deferred | blacklight.docs.artifact_collection |
 | `.cursor/projects/*/agent-transcripts/*/*.jsonl` | sessions | glob | — | — | — | recursively_discovered | A |
+| `.cursor/projects/*/agent-transcripts/*/subagents/**/*.jsonl` | sessions | glob | — | — | — | recursively_discovered | A |
+| `AppData/Roaming/Cursor/User/globalStorage` | sessions | directory | Yes | — | — | explicitly_assessed | S |
+| `AppData/Roaming/Cursor/User/globalStorage/conversation-search.db` | sessions | file | Yes | — | — | explicitly_assessed | S |
+| `AppData/Roaming/Cursor/User/globalStorage/conversation-search.db-shm` | sessions | file | Yes | — | — | explicitly_assessed | S |
+| `AppData/Roaming/Cursor/User/globalStorage/conversation-search.db-wal` | sessions | file | Yes | — | — | explicitly_assessed | S |
+| `AppData/Roaming/Cursor/User/globalStorage/state.vscdb` | sessions | file | Yes | — | — | explicitly_assessed | S |
+| `AppData/Roaming/Cursor/User/globalStorage/state.vscdb-shm` | sessions | file | Yes | — | — | explicitly_assessed | S |
+| `AppData/Roaming/Cursor/User/globalStorage/state.vscdb-wal` | sessions | file | Yes | — | — | explicitly_assessed | S |
+| `AppData/Roaming/Cursor/User/globalStorage/state.vscdb.backup` | sessions | file | Yes | — | — | explicitly_assessed | S |
+| `AppData/Roaming/Cursor/User/globalStorage/state.vscdb.backup-shm` | sessions | file | Yes | — | — | explicitly_assessed | S |
+| `AppData/Roaming/Cursor/User/globalStorage/state.vscdb.backup-wal` | sessions | file | Yes | — | — | explicitly_assessed | S |
+| `AppData/Roaming/Cursor/User/workspaceStorage/*/state.vscdb` | sessions | glob | — | — | — | recursively_discovered | blacklight.scout.cursor_inventory |
+| `AppData/Roaming/Cursor/User/workspaceStorage/*/state.vscdb-shm` | sessions | glob | — | — | — | recursively_discovered | blacklight.scout.cursor_inventory |
+| `AppData/Roaming/Cursor/User/workspaceStorage/*/state.vscdb-wal` | sessions | glob | — | — | — | recursively_discovered | blacklight.scout.cursor_inventory |
+| `AppData/Roaming/Cursor/User/workspaceStorage/*/state.vscdb.backup` | sessions | glob | — | — | — | recursively_discovered | blacklight.scout.cursor_inventory |
+| `AppData/Roaming/Cursor/User/workspaceStorage/*/state.vscdb.backup-shm` | sessions | glob | — | — | — | recursively_discovered | blacklight.scout.cursor_inventory |
+| `AppData/Roaming/Cursor/User/workspaceStorage/*/state.vscdb.backup-wal` | sessions | glob | — | — | — | recursively_discovered | blacklight.scout.cursor_inventory |
+| `Library/Application Support/Cursor/User/globalStorage` | sessions | directory | — | Yes | — | explicitly_assessed | S |
+| `Library/Application Support/Cursor/User/globalStorage/conversation-search.db` | sessions | file | — | Yes | — | explicitly_assessed | S |
+| `Library/Application Support/Cursor/User/globalStorage/conversation-search.db-shm` | sessions | file | — | Yes | — | explicitly_assessed | S |
+| `Library/Application Support/Cursor/User/globalStorage/conversation-search.db-wal` | sessions | file | — | Yes | — | explicitly_assessed | S |
+| `Library/Application Support/Cursor/User/globalStorage/state.vscdb` | sessions | file | — | Yes | — | explicitly_assessed | S |
+| `Library/Application Support/Cursor/User/globalStorage/state.vscdb-shm` | sessions | file | — | Yes | — | explicitly_assessed | S |
+| `Library/Application Support/Cursor/User/globalStorage/state.vscdb-wal` | sessions | file | — | Yes | — | explicitly_assessed | S |
+| `Library/Application Support/Cursor/User/globalStorage/state.vscdb.backup` | sessions | file | — | Yes | — | explicitly_assessed | S |
+| `Library/Application Support/Cursor/User/globalStorage/state.vscdb.backup-shm` | sessions | file | — | Yes | — | explicitly_assessed | S |
+| `Library/Application Support/Cursor/User/globalStorage/state.vscdb.backup-wal` | sessions | file | — | Yes | — | explicitly_assessed | S |
+| `Library/Application Support/Cursor/User/workspaceStorage/*/state.vscdb` | sessions | glob | — | — | — | recursively_discovered | blacklight.scout.cursor_inventory |
+| `Library/Application Support/Cursor/User/workspaceStorage/*/state.vscdb-shm` | sessions | glob | — | — | — | recursively_discovered | blacklight.scout.cursor_inventory |
+| `Library/Application Support/Cursor/User/workspaceStorage/*/state.vscdb-wal` | sessions | glob | — | — | — | recursively_discovered | blacklight.scout.cursor_inventory |
+| `Library/Application Support/Cursor/User/workspaceStorage/*/state.vscdb.backup` | sessions | glob | — | — | — | recursively_discovered | blacklight.scout.cursor_inventory |
+| `Library/Application Support/Cursor/User/workspaceStorage/*/state.vscdb.backup-shm` | sessions | glob | — | — | — | recursively_discovered | blacklight.scout.cursor_inventory |
+| `Library/Application Support/Cursor/User/workspaceStorage/*/state.vscdb.backup-wal` | sessions | glob | — | — | — | recursively_discovered | blacklight.scout.cursor_inventory |
 | `.cursor/skills` | skills | directory | Yes | Yes | Yes | explicitly_assessed | S |
 | `.cursor/skills-cursor` | skills | directory | Yes | Yes | Yes | explicitly_assessed | S, E |
 | `.cursor/skills-cursor/.cursor-managed-skills-manifest.json` | skills | file | — | — | — | intentionally_deferred | E |
 | `.cursor/skills-cursor/.sync-manifest.json` | skills | file | — | — | — | intentionally_deferred | E |
 | `.cursor/snapshots` | snapshots | directory | Yes | Yes | Yes | explicitly_assessed | S |
 | `.cursor/ai-tracking/ai-code-tracking.db` | telemetry | file | Yes | Yes | Yes | explicitly_assessed | S, E |
+| `.config/Cursor/User/workspaceStorage` | workspace | directory | — | — | Yes | explicitly_assessed | S |
+| `.cursor/ide_state.json` | workspace | file | Yes | Yes | Yes | explicitly_assessed | S |
 | `.cursor/projects` | workspace | directory | Yes | Yes | Yes | explicitly_assessed | S, A |
+| `.cursor/projects/*/.workspace-trusted` | workspace | glob | — | — | — | recursively_discovered | E |
+| `.cursor/projects/*/agent-tools/**` | workspace | glob | — | — | — | recursively_discovered | blacklight.scout.cursor_inventory, blacklight.docs.artifact_collection |
+| `.cursor/projects/*/assets/**` | workspace | glob | — | — | — | intentionally_deferred | blacklight.docs.artifact_collection |
+| `.cursor/projects/*/canvases/**` | workspace | glob | — | — | — | intentionally_deferred | blacklight.docs.artifact_collection |
+| `.cursor/projects/*/terminals/**` | workspace | glob | — | — | — | recursively_discovered | blacklight.scout.cursor_inventory, blacklight.docs.artifact_collection |
+| `.cursor/projects/*/uploads/**` | workspace | glob | — | — | — | intentionally_deferred | blacklight.docs.artifact_collection |
 | `.cursor/statsig-cache.json` | workspace | file | — | — | — | intentionally_deferred | E |
+| `AppData/Roaming/Cursor/User/workspaceStorage` | workspace | directory | Yes | — | — | explicitly_assessed | S |
+| `Library/Application Support/Cursor/User/workspaceStorage` | workspace | directory | — | Yes | — | explicitly_assessed | S |
 | `.cursor/worktrees` | worktrees | directory | Yes | Yes | Yes | explicitly_assessed | S |
 
 ### devin
@@ -175,7 +299,11 @@ Evidence abbreviations: **S** = static Scout catalog; **E** = endpoint count-onl
 | `AppData/Local/devin/cli/_versions` | root | directory | Yes | Yes | Yes | explicitly_assessed | S |
 | `AppData/Local/devin/cli/bin/devin.exe` | root | file | Yes | Yes | Yes | explicitly_assessed | S |
 | `.local/share/devin/cli/sessions.db` | sessions | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `.local/share/devin/cli/sessions.db-shm` | sessions | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `.local/share/devin/cli/sessions.db-wal` | sessions | file | Yes | Yes | Yes | explicitly_assessed | S |
 | `AppData/Local/devin/cli/sessions.db` | sessions | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `AppData/Local/devin/cli/sessions.db-shm` | sessions | file | Yes | Yes | Yes | explicitly_assessed | S |
+| `AppData/Local/devin/cli/sessions.db-wal` | sessions | file | Yes | Yes | Yes | explicitly_assessed | S |
 
 ### grok
 

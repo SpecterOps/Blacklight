@@ -4,7 +4,7 @@ Session Analysis reads both V1 `session`/`message`/`part` and V2
 `session_v2`/`session_message` from a selected `opencode.db`. Both families can
 coexist. Session identities include a `v1:` or `v2:` prefix so equal IDs from
 different generations remain distinguishable. Text, reasoning text, and tool
-inputs/results contribute to the existing redacted metrics and indicators.
+inputs/results contribute to the session metrics and activity-based scores.
 
 Preserve exact adjacent `opencode.db-wal` and `opencode.db-shm` files during
 consistent collection. The database can contain credentials; analysis queries
